@@ -65,18 +65,27 @@ var quakeLayer      = L.layerGroup();
 var lightningLayer  = L.layerGroup();
 var aqiLayer        = L.layerGroup();
 var airLayer        = L.layerGroup();
-var shipLayer       = L.layerGroup();
 var stationLayer    = L.layerGroup();   // land weather stations (NWS) — shown on the meteorological views
 var alertLayer      = L.layerGroup();
 var turbulenceLayer = L.layerGroup();
 var airportLayer    = L.layerGroup();
 var tideLayer       = L.layerGroup();
+var shipLayer       = L.featureGroup();
 var hazardTextLayer = L.layerGroup();
 // Dense bathymetry — only added to map during Traffic Combined zoom-in
 var denseDepthLayer = L.layerGroup();
 var superDenseDepthLayer = L.layerGroup();
 var sparseDepthLayer = L.layerGroup();
-var deepOceanAirLayer = L.layerGroup();
+var deepOceanAirLayer = L.featureGroup();
+
+var romsTempLayer = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thredds/wms/roms_hiig/ROMS_Hawaii_Regional_Ocean_Model_best.ncd', {
+    layers: 'temp',
+    format: 'image/png',
+    transparent: true,
+    opacity: 0.65,
+    colorscalerange: '24,28',
+    styles: 'boxfill/rainbow'
+});
 
 // --- HAZARD TEXT LAYER SET UP LATER ---
 
@@ -1491,6 +1500,16 @@ function updateLegend(type) {
                 <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>0</span><span>8</span><span>15+ ft</span></div>
             </div>
         `;
+    } else if (type === 'roms') {
+        html = `
+            <div style="margin-bottom:12px;">
+                <div style="font-weight:bold; font-size:11px; color:#4facfe; text-transform:uppercase; margin-bottom:4px;">WATER TEMPERATURE</div>
+                <div style="font-size:9.5px; color:#dfe6e9; margin-bottom:4px;"><b>Model: PacIOOS ROMS</b></div>
+                <div style="font-size:9.5px; color:#b2bec3; line-height:1.3; margin-bottom:8px;">High-resolution Regional Ocean Modeling System forecast.</div>
+                <div style="height:6px; width:100%; border-radius:3px; background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);"></div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>75°F</span><span>78.5°F</span><span>82°F</span></div>
+            </div>
+        `;
     }
 
     el.innerHTML = html;
@@ -1556,7 +1575,7 @@ const uiStates = [
                 const wh = b51211.waveHeight != null ? `${mToFt(b51211.waveHeight)}ft` : '--';
                 const pd = b51211.dominantPeriod ? `@ ${b51211.dominantPeriod}s` : '';
                 const ws = b51211.windSpeedKt != null ? `${b51211.windSpeedKt}kt` : '--';
-                const wd = b51211.windDir != null ? `${b51211.windDir}°` : '';
+                const wd = b51211.windDir != null ? `${b51211.windDir}°` : '--';
                 const wt = b51211.waterTemp != null ? `${cToF(b51211.waterTemp)}°F` : '--';
                 const pr = b51211.pressure != null ? `${b51211.pressure}mb` : '--';
                 buoyDataHtml = `<div style="margin-top:10px; padding:6px; background:rgba(0,0,0,0.4); border-radius:6px; border:1px solid rgba(255,255,255,0.1); font-size:0.75em; display:flex; justify-content:space-around; align-items:center; text-align:center;">
@@ -1621,11 +1640,13 @@ const uiStates = [
     // ── 5: HAZARD MONITOR — SEISMIC + LIGHTNING + TURBULENCE ──────────
     {
         id: 'state-hazard',
-        title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", perPageMs: 3500, pageSize: 6, holdExtraMs: 4000,
+        title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE · ROMS TEMP", perPageMs: 3500, pageSize: 6, holdExtraMs: 4000,
         view: 'hawaii',
-        layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer, sparseDepthLayer, deepOceanAirLayer],
-        layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer],
+        layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer, romsTempLayer, deepOceanAirLayer],
+        layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer, sparseDepthLayer],
         getItems: getDeepOceanFlightItems, renderItem: renderAviationItem,
+        onEnter() { updateLegend('roms'); },
+        onExit()  { updateLegend('none'); },
         renderStatic() {
             return `<div class="hazard-legend" style="margin-bottom: 8px;">
                 <div class="legend-title">HAZARD STATUS</div>
@@ -1772,7 +1793,7 @@ function transitionState() {
     [
         stationLayer, surfLayer, currentLayer, alertLayer, turbulenceLayer, 
         airportLayer, hazardTextLayer, quakeLayer, lightningLayer, denseDepthLayer,
-        superDenseDepthLayer, sparseDepthLayer, deepOceanAirLayer,
+        superDenseDepthLayer, sparseDepthLayer, deepOceanAirLayer, romsTempLayer,
         aqiLayer, airLayer, shipLayer, buoyLayer, tideLayer, radarLayerGroup,
         windLayer, waveLayer
     ].forEach(l => {

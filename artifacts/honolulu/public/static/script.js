@@ -1843,7 +1843,7 @@ function transitionState() {
             ? `<div class="page-indicator">${currentPage + 1} / ${totalPages}</div>`
             : '';
         const staticHtml = state.renderStatic ? state.renderStatic() : '';
-        contentEl.innerHTML = `${staticHtml}<div class="data-list">${pageItems.map(state.renderItem).join('')}</div>${pageHint}`;
+        contentEl.innerHTML = `${staticHtml}<div class="data-list-wrapper" style="flex:1; display:flex; flex-direction:column; min-width:0;"><div class="data-list">${pageItems.map(state.renderItem).join('')}</div>${pageHint}</div>`;
 
         const isLast = currentPage + 1 >= totalPages;
         const dwell  = (state.perPageMs ?? 3000) + (isLast ? (state.holdExtraMs ?? 0) : 0);

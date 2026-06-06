@@ -52,8 +52,42 @@ body, html {
     bottom: 4%;
     left: 3%;
     right: auto;
-    width: 25%;
+    width: 65%;
 }
+
+#overlay-container.state-hazard #panel-content {
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    align-items: stretch;
+}
+
+#overlay-container.state-hazard .hazard-legend {
+    flex: 0 0 220px;
+    margin-bottom: 0 !important;
+}
+
+#overlay-container.state-hazard .data-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    align-content: start;
+}
+
+#overlay-container.state-hazard .data-row {
+    padding: 6px 10px !important;
+}
+
+#overlay-container.state-hazard .row-primary {
+    font-size: 11px;
+}
+#overlay-container.state-hazard .row-secondary {
+    font-size: 9px;
+}
+#overlay-container.state-hazard .row-meta {
+    font-size: 10px;
+}
+
 
 #overlay-container.state-surf {
     width: 28%;

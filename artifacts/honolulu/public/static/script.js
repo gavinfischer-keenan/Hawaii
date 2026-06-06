@@ -19,7 +19,7 @@ const bounds = [[20.994, -158.45], [21.75, -157.00]];
 // the 1920x1080 container without any padding or rounding.
 var map = L.map('map', {
     zoomControl: false, attributionControl: false,
-    zoomSnap: 0, minZoom: 0, maxZoom: 12, maxBounds: bounds, maxBoundsViscosity: 1.0
+    zoomSnap: 0, minZoom: 0, maxZoom: 14, maxBounds: bounds, maxBoundsViscosity: 1.0
 }).fitBounds(bounds);
 // Prevent all user interaction — map is display-only; programmatic flyTo still works
 map.dragging.disable(); map.touchZoom.disable(); map.doubleClickZoom.disable();
@@ -34,11 +34,11 @@ map.createPane('trafficPane'); map.getPane('trafficPane').style.zIndex = 500;
 map.createPane('surfPane');    map.getPane('surfPane').style.zIndex    = 550;
 map.createPane('poiPane');     map.getPane('poiPane').style.zIndex     = 600;
 map.createPane('hazardPane');  map.getPane('hazardPane').style.zIndex  = 650;
-map.createPane('islandPane');  map.getPane('islandPane').style.zIndex  = 670;
 map.createPane('windPane');    map.getPane('windPane').style.zIndex    = 380;
+map.createPane('wavePane');    map.getPane('wavePane').style.zIndex    = 390;
 
 // --- BASE TILES ---
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13 }).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 13, maxZoom: 14 }).addTo(map);
 // Place/channel labels overlay. CartoDB raster labels are transparent PNGs
 // cached globally, so open-ocean tiles return EMPTY instead of the opaque grey
 // "Zoom Level Not Supported" placeholders that ESRI's World_Topo_Map and
@@ -59,6 +59,7 @@ var staticPoiLayer  = L.layerGroup().addTo(map);
 var radarLayerGroup = L.layerGroup();
 var currentLayer    = L.layerGroup();
 var windLayer       = L.layerGroup();
+var waveLayer       = L.layerGroup();
 var buoyLayer       = L.layerGroup();
 var quakeLayer      = L.layerGroup();
 var lightningLayer  = L.layerGroup();
@@ -71,55 +72,59 @@ var turbulenceLayer = L.layerGroup();
 var airportLayer    = L.layerGroup();
 var tideLayer       = L.layerGroup();
 var hazardTextLayer = L.layerGroup();
-var oceanHazardLayer = L.layerGroup();
 // Dense bathymetry — only added to map during Traffic Combined zoom-in
 var denseDepthLayer = L.layerGroup();
+var superDenseDepthLayer = L.layerGroup();
 
-// --- POPULATE HAZARD TEXT LAYER ---
-const southShoreCoords = [
-    [21.310,-157.650], [21.268,-157.700], [21.252,-157.805],
-    [21.282,-157.845], [21.300,-157.875], [21.300,-158.020], [21.297,-158.103]
-];
-// Highlight the coast
-L.polyline(southShoreCoords, { color: '#ff9f43', weight: 4, opacity: 0.9, pane: 'hazardPane' }).addTo(hazardTextLayer);
-L.polyline(southShoreCoords, { color: '#ff9f43', weight: 4, opacity: 0.9, pane: 'hazardPane' }).addTo(oceanHazardLayer);
+// --- HAZARD TEXT LAYER SET UP LATER ---
 
-// Box location
-const scaBoxLatLng = [20.6, -158.1];
+var dynamicAlertMarkers = L.layerGroup().addTo(hazardTextLayer);
 
-// Leader line from Diamond Head to the box
-L.polyline([[21.252, -157.805], scaBoxLatLng], { color: '#ff9f43', weight: 1.5, dashArray: '4,4', opacity: 0.8, pane: 'hazardPane' }).addTo(hazardTextLayer);
+function getHazardColor(eventStr) {
+    const e = (eventStr || '').toLowerCase();
+    if (/hurricane|typhoon|extreme/i.test(e)) return '#ee5253'; // Red
+    if (/gale|storm/i.test(e)) return '#e84393'; // Pink
+    if (/small craft/i.test(e)) return '#ff9f43'; // Orange
+    if (/surf|advisory/i.test(e)) return '#1dd1a1'; // Green
+    if (/warning/i.test(e)) return '#ff7675'; // Light Red
+    return '#a29bfe'; // Purple
+}
 
-// Small Craft Advisory Box
-const scaHtml = `<div style="background: rgba(255, 159, 67, 0.15); border: 1px solid #ff9f43; padding: 10px; border-radius: 6px; width: 260px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-    <div style="color: #ff9f43; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">Small Craft Advisory</div>
-    <div style="color: #dfe6e9; line-height: 1.4;">Oahu South Shore waters.<br>East winds 20 to 25 knots. Seas 7 to 10 feet.<br>Conditions hazardous to small craft.</div>
-</div>`;
-L.marker(scaBoxLatLng, {
-    pane: 'hazardPane',
-    icon: L.divIcon({ className: '', html: scaHtml, iconSize: [260, 80], iconAnchor: [0, 40] })
-}).addTo(hazardTextLayer);
+function getOffsetPolygon(poly, offsetRatio) {
+    let clat = 0, clng = 0;
+    for(let p of poly) { clat += p[0]; clng += p[1]; }
+    clat /= poly.length; clng /= poly.length;
+    return poly.map(p => {
+        const dLat = p[0] - clat;
+        const dLng = p[1] - clng;
+        return [clat + dLat*(1+offsetRatio), clng + dLng*(1+offsetRatio)];
+    });
+}
 
-// Airmet Box location
-const airmetBoxLatLng = [19.9, -158.1];
-const airmetHtml = `<div style="background: rgba(232, 67, 147, 0.1); border: 1px dashed #e84393; padding: 10px; border-radius: 6px; width: 260px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-    <div style="color: #e84393; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">AIRMET TANGO (Turbulence)</div>
-    <div style="color: #dfe6e9; line-height: 1.4;">Moderate turbulence below 8,000 feet.<br>Over and immediately south through west of mountains of all islands.</div>
-</div>`;
-L.marker(airmetBoxLatLng, {
-    pane: 'hazardPane',
-    icon: L.divIcon({ className: '', html: airmetHtml, iconSize: [260, 80], iconAnchor: [0, 40] })
-}).addTo(hazardTextLayer);
 
-// Volcano Status Box
-const volcanoHtml = `<div style="background: rgba(0, 0, 0, 0.65); border: 1px solid #ee5253; padding: 10px; border-radius: 6px; width: 180px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-    <div style="color: #ee5253; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">🌋 VOLCANO STATUS</div>
-    <div style="color: #dfe6e9; line-height: 1.4; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);"><b>Kilauea:</b> ADVISORY<br><b>Mauna Loa:</b> NORMAL<br><span style="color:#a4b0be;font-size:9px;">USGS HVO Update</span></div>
-</div>`;
-L.marker([19.7, -155.4], {
-    pane: 'hazardPane',
-    icon: L.divIcon({ className: '', html: volcanoHtml, iconSize: [180, 70], iconAnchor: [90, 70] })
-}).addTo(hazardTextLayer);
+function initHardcodedHazards() {
+    // Airmet Box location
+    const airmetBoxLatLng = [19.9, -158.1];
+    const airmetHtml = `<div style="background: rgba(232, 67, 147, 0.1); border: 1px dashed #e84393; padding: 10px; border-radius: 6px; width: 260px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        <div style="color: #e84393; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">AIRMET TANGO (Turbulence)</div>
+        <div style="color: #dfe6e9; line-height: 1.4;">Moderate turbulence below 8,000 feet.<br>Over and immediately south through west of mountains of all islands.</div>
+    </div>`;
+    L.marker(airmetBoxLatLng, {
+        pane: 'hazardPane',
+        icon: L.divIcon({ className: '', html: airmetHtml, iconSize: [260, 80], iconAnchor: [0, 40] })
+    }).addTo(hazardTextLayer);
+
+    // Volcano Status Box
+    const volcanoHtml = `<div style="background: rgba(0, 0, 0, 0.65); border: 1px solid #ee5253; padding: 10px; border-radius: 6px; width: 180px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        <div style="color: #ee5253; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">🌋 VOLCANO STATUS</div>
+        <div style="color: #dfe6e9; line-height: 1.4; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);"><b>Kilauea:</b> ADVISORY<br><b>Mauna Loa:</b> NORMAL<br><span style="color:#a4b0be;font-size:9px;">USGS HVO Update</span></div>
+    </div>`;
+    L.marker([19.7, -155.4], {
+        pane: 'hazardPane',
+        icon: L.divIcon({ className: '', html: volcanoHtml, iconSize: [180, 70], iconAnchor: [90, 70] })
+    }).addTo(hazardTextLayer);
+}
+initHardcodedHazards();
 
 
 // Traffic Flow Layer (TomTom) removed due to missing API key and unused status.
@@ -143,7 +148,7 @@ async function refreshRadar() {
         // region; above that it returns a "Zoom Level Not Supported" placeholder
         // tile. Cap maxNativeZoom at 7 so Leaflet upscales the z7 frame across
         // the map's z9–12 range instead of requesting unsupported tiles.
-        _radarTile = L.tileLayer(url, { pane: 'radarPane', opacity: 0.7, maxNativeZoom: 7, maxZoom: 13 });
+        _radarTile = L.tileLayer(url, { pane: 'radarPane', opacity: 0.7, maxNativeZoom: 7, maxZoom: 14 });
         radarLayerGroup.addLayer(_radarTile);
     } catch (e) { console.warn('Radar fetch:', e); }
 }
@@ -183,6 +188,16 @@ const ISLAND_POLYS = [
     [[21.03,-156.61],[20.98,-156.48],[20.80,-156.45],[20.80,-156.55],
      [20.87,-156.69],[20.94,-156.70],[20.99,-156.66]],
 ];
+
+// --- POPULATE HAZARD TEXT LAYER ---
+const ISLAND_OUTLINES = {
+    'Kauai': [[22.23,-159.58],[22.22,-159.30],[22.10,-159.28],[21.90,-159.45],[21.88,-159.70],[22.05,-159.80]],
+    'Oahu': ISLAND_POLYS[0],
+    'Molokai': ISLAND_POLYS[1],
+    'Lanai': ISLAND_POLYS[2],
+    'Maui': [[21.03,-156.61],[20.94,-156.30],[20.91,-156.20],[20.76,-155.98],[20.65,-156.10],[20.58,-156.40],[20.75,-156.45],[20.80,-156.55],[20.99,-156.66]],
+    'Hawaii': [[20.25,-155.9],[20.1,-155.1],[19.7,-154.8],[19.3,-155.0],[18.9,-155.6],[19.1,-156.0],[19.7,-156.1]]
+};
 function pointInPoly(lat, lng, poly) {
     let inside = false;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -268,6 +283,39 @@ for (let lat = 21.15; lat <= 21.42; lat += 0.022) {
 }
 
 // =====================================================================
+// SUPER DENSE BATHYMETRY - super zoomed Waikiki view
+// =====================================================================
+const rngSD = makeSeededRng(0xBEEFCAFE);
+
+for (let lat = 21.22; lat <= 21.30; lat += 0.005) {
+    for (let lng = -157.88; lng <= -157.72; lng += 0.006) {
+        const jLat = lat + (rngSD() - 0.5) * 0.002;
+        const jLng = lng + (rngSD() - 0.5) * 0.003;
+        if (isOnLand(jLat, jLng)) continue;
+
+        const kmOff = distToShoreKm(jLat, jLng);
+        let depth;
+        if (kmOff < 1)         depth = 10 + kmOff * 80;
+        else if (kmOff < 3)    depth = 90 + (kmOff - 1) * 350;
+        else if (kmOff < 8)    depth = 790 + (kmOff - 3) * 350;
+        else if (kmOff < 20)   depth = 2540 + (kmOff - 8) * 250;
+        else                   depth = 5540 + (kmOff - 20) * 150;
+
+        depth += (rngSD() - 0.5) * (depth * 0.20); 
+        depth = Math.floor(Math.max(6, depth));
+        
+        const fm = Math.floor(depth / 6);
+        const ft = Math.floor(depth % 6);
+        const html = fm < 30 && ft > 0 ? `${fm}<sub>${ft}</sub>` : `${fm}`;
+
+        L.marker([jLat, jLng], {
+            pane: 'depthPane',
+            icon: L.divIcon({ className: 'depth-label depth-label-dense', html: html, iconSize: [24, 14], iconAnchor: [12, 7] })
+        }).addTo(superDenseDepthLayer);
+    }
+}
+
+// =====================================================================
 // STATIC NOAA BUOY LABELS (always on map)
 // =====================================================================
 var staticPoiMarkers = [];
@@ -306,9 +354,9 @@ var staticPoiMarkers = [];
 // =====================================================================
 // Coordinates adjusted so each marker sits at the beach, not offshore.
 const surfSpots = [
-    { c: [21.666, -158.037], name: "Sunset",    buoyId: "51201", cssScale: 0.85, scale: 1.5, nudge: [0, -38] }, // Top
-    { c: [21.664, -158.053], name: "Pipeline",  buoyId: "51201", cssScale: 0.85, scale: 1.2, nudge: [0, 8] }, // Middle
-    { c: [21.643, -158.064], name: "Waimea",    buoyId: "51201", cssScale: 0.85, scale: 1.0, nudge: [0, 54] },  // Bottom
+    { c: [21.666, -158.037], name: "Sunset",    buoyId: "51201", cssScale: 0.85, scale: 1.5, nudge: [0, 65] }, // Top (shifted UP)
+    { c: [21.664, -158.053], name: "Pipeline",  buoyId: "51201", cssScale: 0.85, scale: 1.2, nudge: [0, 0] },  // Middle (centered)
+    { c: [21.643, -158.064], name: "Waimea",    buoyId: "51201", cssScale: 0.85, scale: 1.0, nudge: [0, -65] }, // Bottom (shifted DOWN)
     { c: [21.474, -158.219], name: "Makaha",    buoyId: "51212", cssScale: 0.85, scale: 0.8, nudge: [55, 0] },        // Left
     { c: [21.275, -157.828], name: "Waikiki",   buoyId: "51211", cssScale: 0.80, scale: 0.5, nudge: [0, -18] },              // Directly on dot
     { c: [21.286, -157.671], name: "Sandy's",   buoyId: "51211", cssScale: 0.85, scale: 0.6, nudge: [0, 10] },              // Right
@@ -444,8 +492,6 @@ function declutterLabels() {
             }});
         });
     }
-
-    // stationLayer decluttering removed: stations are now naked icons placed directly on their coordinates.
 
     if (map.hasLayer(tideLayer)) {
         tideMarkers.forEach(t => {
@@ -607,13 +653,63 @@ async function fetchWind() {
             data: data,
             maxVelocity: 30,
             velocityScale: 0.005,
-            colorScale: ['#1dd1a1', '#feca57', '#ff9f43', '#ee5253'],
-            lineWidth: 2,
-            particleMultiplier: 1 / 1200,
+            colorScale: ['#ffffff', '#00f2fe', '#4facfe', '#1dd1a1', '#feca57', '#ff9f43', '#ee5253'],
+            lineWidth: 3,
+            particleMultiplier: 1 / 800,
             pane: 'windPane'
         });
         velocityLayer.addTo(windLayer);
     } catch(e) { console.warn('Wind fetch:', e); }
+}
+
+async function fetchWaves() {
+    try {
+        // Using the sample global vector array as a placeholder for OPeNDAP WW3 data
+        const r = await fetch('/static/wind-data.json');
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        
+        // MASK OUT LAND for waves
+        if (data.length === 2 && data[0].data && data[1].data && data[0].header) {
+            const h = data[0].header;
+            const nx = h.nx; const ny = h.ny;
+            const dx = h.dx; const dy = h.dy;
+            const la1 = h.la1; const lo1 = h.lo1;
+            
+            for (let j = 0; j < ny; j++) {
+                for (let i = 0; i < nx; i++) {
+                    const lat = la1 - j * dy;
+                    const lng = lo1 + i * dx;
+                    // Our lo1 might be 0 to 360, but Hawaii is -157. Convert if needed
+                    const adjLng = lng > 180 ? lng - 360 : lng;
+                    
+                    if (isOnLand(lat, adjLng)) {
+                        const idx = j * nx + i;
+                        data[0].data[idx] = null;
+                        data[1].data[idx] = null;
+                    }
+                }
+            }
+        }
+        
+        waveLayer.clearLayers();
+        const velocityLayer = L.velocityLayer({
+            displayValues: true,
+            displayOptions: {
+                velocityType: 'Significant Swell',
+                displayPosition: 'bottomleft',
+                displayEmptyString: 'No wave data'
+            },
+            data: data,
+            maxVelocity: 15,
+            velocityScale: 0.015, // Faster visual travel for swell
+            colorScale: ['#00008b', '#0000ff', '#00bfff', '#00fa9a', '#ffd700', '#ff00ff', '#ff0000'], // Heatmap colors
+            lineWidth: 5, // Thicker strokes for wave energy
+            particleMultiplier: 1 / 1800,
+            pane: 'wavePane'
+        });
+        velocityLayer.addTo(waveLayer);
+    } catch(e) { console.warn('Wave fetch:', e); }
 }
 
 async function fetchBuoys() {
@@ -684,34 +780,53 @@ async function fetchStations() {
         stationLayer.clearLayers();
         stationMarkers = [];
         liveData.stations.forEach(s => {
-            if (s.tempF == null && s.windKt == null) return;
-            const temp = s.tempF != null ? `${s.tempF}°` : '--';
+            if (s.tempF == null) return;
+            const temp = s.tempF;
+            const windDeg = s.windDeg ?? 0;
+            const windKt = s.windKt ?? 0;
             
-            let arrowHtml = '';
-            if (s.windKt != null && s.windDeg != null) {
-                // Base length 15px + 1.5px per knot, max 50px
-                const length = Math.min(50, 15 + s.windKt * 1.5);
-                // Rotate arrow to point in direction wind is blowing.
-                // windDeg is direction wind comes FROM. North (0) comes from North, points South (down).
-                // In CSS, 0deg is right. So down is 90deg.
-                const rot = s.windDeg + 90;
-                const counterRot = -rot;
-                
-                arrowHtml = `<div class="wx-naked-wind-arrow" style="width:${length}px; transform:translateY(-50%) rotate(${rot}deg);">
-                    <span class="wx-naked-wind-speed" style="transform:rotate(${counterRot}deg);">${s.windKt}</span>
-                </div>`;
+            // Generate wind barb feathers
+            let barbsHtml = '';
+            if (windKt >= 3) {
+                let y = -35; // End of stick
+                let speed = windKt;
+                while (speed >= 10) {
+                    barbsHtml += `<div style="position:absolute; top:${y}px; left:0; width:12px; height:2px; background:#000; transform:rotate(30deg); transform-origin:0 0;"></div>`;
+                    y += 4;
+                    speed -= 10;
+                }
+                if (speed >= 5) {
+                    barbsHtml += `<div style="position:absolute; top:${y}px; left:0; width:6px; height:2px; background:#000; transform:rotate(30deg); transform-origin:0 0;"></div>`;
+                }
             }
-            
-            const html = `<div class="wx-naked">
-                <div class="wx-naked-temp">${temp}</div>
-                ${arrowHtml}
+
+            const barbStick = windKt >= 3 ? `<div style="position:absolute; top:14px; left:14px; transform:rotate(${windDeg}deg); transform-origin:0 0; z-index:5;">
+                <div style="position:absolute; top:-35px; left:-1px; width:2px; height:35px; background:#000;"></div>
+                ${barbsHtml}
+            </div>` : '';
+
+            // Color scale based on temp
+            let bgColor = '#ff9f43';
+            if (temp >= 85) bgColor = '#ee5253';
+            else if (temp <= 70) bgColor = '#48dbfb';
+
+            const html = `<div class="fading-marker" style="position:relative; width:28px; height:28px;">
+                ${barbStick}
+                <div style="position:absolute; top:0; left:0; width:28px; height:28px; background:${bgColor}; border:2px solid #000; border-radius:50%; color:#000; font-weight:bold; font-size:13px; line-height:24px; text-align:center; z-index:10; box-sizing:border-box;">
+                    ${temp}
+                </div>
             </div>`;
+
+            // Tooltip for full data
+            const tooltip = `<b>${s.name}</b><br>Temp: ${temp}°F<br>Wind: ${s.windDir || ''} ${windKt}kt`;
+
             const marker = L.marker([s.lat, s.lng], { pane: 'poiPane',
-                icon: L.divIcon({ className: '', html, iconSize: [40, 40], iconAnchor: [20, 20] })
-            }).addTo(stationLayer);
+                icon: L.divIcon({ className: '', html, iconSize: [28, 28], iconAnchor: [14, 14] })
+            }).addTo(stationLayer).bindTooltip(tooltip, { className: 'poi-label', direction: 'top', offset: [0, -14] });
+            
             stationMarkers.push({ marker, html });
         });
-        declutterLabels();
+        // Intentionally NOT calling declutterLabels() so these sit exactly on their coordinates without leaders
     } catch(e) { console.warn('Station fetch:', e); }
 }
 
@@ -749,22 +864,76 @@ async function fetchAlerts() {
         liveData.alerts = await r.json();
 
         alertLayer.clearLayers();
-        oceanHazardLayer.clearLayers();
-        L.polyline(southShoreCoords, { color: '#ff9f43', weight: 4, opacity: 0.9, pane: 'hazardPane' }).addTo(oceanHazardLayer);
+        dynamicAlertMarkers.clearLayers();
+
+        let islandHazardCount = { 'Kauai': 0, 'Oahu': 0, 'Molokai': 0, 'Lanai': 0, 'Maui': 0, 'Hawaii': 0 };
 
         (liveData.alerts.alerts || []).forEach(a => {
+            const eName = a.event ?? '';
+            const eDesc = a.headline || a.desc || '';
+            const isOceanHazard = /craft|marine|surf|sea|water|gale|hurricane|tsunami|warning/i.test(eName);
+            
+            const color = getHazardColor(eName);
+
+            // 1. Draw generic geospatial alert geometry if provided
             if (a.geometry) {
-                const color = a.severity === 'Severe' || a.severity === 'Extreme' ? '#ee5253' :
-                              a.severity === 'Moderate' ? '#ff9f43' : '#a29bfe';
                 const layer = L.geoJSON(a.geometry, {
                     pane: 'hazardPane',
-                    style: { color, weight: 2, fillOpacity: 0.15 }
-                }).bindTooltip(a.event, { sticky: true, className: 'poi-label' });
-                
+                    style: { color, weight: 2, fillOpacity: 0.10 }
+                }).bindTooltip(eName, { sticky: true, className: 'poi-label' });
                 layer.addTo(alertLayer);
-                if (/craft|marine|surf|sea|water|gale|hurricane|tsunami/i.test(a.event ?? '')) {
-                    layer.addTo(oceanHazardLayer);
+            }
+
+            // 2. Draw coastal lines and boxes for ocean/marine hazards
+            if (isOceanHazard) {
+                const affectedIslands = [];
+                for (let isl in ISLAND_OUTLINES) {
+                    if (new RegExp(isl, 'i').test(eName + ' ' + eDesc)) {
+                        affectedIslands.push(isl);
+                    }
                 }
+                
+                // If it's a general marine warning that doesn't explicitly name an island, optionally apply to all or fallback
+                if (affectedIslands.length === 0 && /hawaii/i.test(eName + ' ' + eDesc)) {
+                    affectedIslands.push(...Object.keys(ISLAND_OUTLINES)); // Apply to all
+                }
+
+                affectedIslands.forEach(isl => {
+                    const count = islandHazardCount[isl]++;
+                    // Offset poly if multiple hazards
+                    const offsetRatio = count * 0.035; 
+                    const polyCoords = getOffsetPolygon(ISLAND_OUTLINES[isl], offsetRatio);
+
+                    // Draw the colored coastline
+                    L.polyline(polyCoords, { color: color, weight: 4, opacity: 0.9, pane: 'hazardPane' }).addTo(dynamicAlertMarkers);
+
+                    // Label Location (roughly South-West of each island)
+                    let labelLat = polyCoords[0][0] - 0.05, labelLng = polyCoords[0][1] - 0.05;
+                    if (isl === 'Oahu') { labelLat = 21.252; labelLng = -157.805; }
+                    
+                    if (isl === 'Oahu') {
+                        // Detailed box for Oahu
+                        const boxLat = 20.6 - (count * 0.25);
+                        const boxLng = -158.1;
+                        L.polyline([[labelLat, labelLng], [boxLat, boxLng]], { color: color, weight: 1.5, dashArray: '4,4', opacity: 0.8, pane: 'hazardPane' }).addTo(dynamicAlertMarkers);
+                        
+                        const html = `<div style="background: rgba(${color === '#ff9f43'?'255,159,67':color === '#1dd1a1'?'29,209,161':color === '#ee5253'?'238,82,83':'162,155,254'}, 0.15); border: 1px solid ${color}; padding: 10px; border-radius: 6px; width: 260px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                            <div style="color: ${color}; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">${eName}</div>
+                            <div style="color: #dfe6e9; line-height: 1.4;">Oahu / Hawaiian Waters<br>${eDesc.substring(0, 100)}${eDesc.length > 100 ? '...' : ''}</div>
+                        </div>`;
+                        L.marker([boxLat, boxLng], {
+                            pane: 'hazardPane',
+                            icon: L.divIcon({ className: '', html: html, iconSize: [260, 80], iconAnchor: [0, 40] })
+                        }).addTo(dynamicAlertMarkers);
+                    } else {
+                        // Simple Text Label for other islands
+                        const html = `<div style="color: ${color}; font-weight: bold; font-size: 13px; text-shadow: 1px 1px 4px #000, -1px -1px 4px #000; white-space: nowrap; text-transform: uppercase;">⚠️ ${eName}</div>`;
+                        L.marker([labelLat, labelLng], {
+                            pane: 'hazardPane',
+                            icon: L.divIcon({ className: '', html: html, iconSize: [180, 20], iconAnchor: [90, 10] })
+                        }).addTo(dynamicAlertMarkers);
+                    }
+                });
             }
         });
     } catch(e) { console.warn('Alerts fetch:', e); liveData.alerts = { alerts: [] }; }
@@ -825,6 +994,43 @@ async function fetchAirQuality() {
             }).addTo(lightningLayer));
         }
     } catch(e) { console.warn('AQI fetch:', e); }
+}
+
+async function fetch7DayForecast() {
+    try {
+        const r = await fetch('https://api.weather.gov/gridpoints/HFO/154,145/forecast');
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        
+        let html = `<div id="forecast-box" style="position: absolute; top: 20px; right: 20px; z-index: 999; background: rgba(0, 0, 0, 0.75); border: 1px solid rgba(255, 255, 255, 0.2); padding: 15px; border-radius: 8px; color: #fff; width: 320px; backdrop-filter: blur(8px); display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.6);">
+            <div style="font-size: 14px; font-weight: bold; color: #4facfe; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;">7-Day Forecast</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">`;
+            
+        const periods = data.properties.periods;
+        let dayCount = 0;
+        for (let i = 0; i < periods.length && dayCount < 7; i++) {
+            const p = periods[i];
+            // Show today's remainder, and then daytime for the next 6 days
+            if (p.isDaytime || i === 0) { 
+                html += `<div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
+                    <div style="font-weight: bold; width: 90px; color: #dfe6e9;">${p.name.replace('This Afternoon', 'Today').replace('Tonight', 'Tonight')}</div>
+                    <div style="flex: 1; margin: 0 10px; color: #b2bec3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${p.shortForecast}">${p.shortForecast}</div>
+                    <div style="font-weight: bold; color: ${p.isDaytime ? '#ff9f43' : '#74b9ff'};">${p.temperature}°</div>
+                </div>`;
+                dayCount++;
+            }
+        }
+        
+        html += `</div></div>`;
+        
+        let el = document.getElementById('forecast-container');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'forecast-container';
+            document.getElementById('viewport-scaler').appendChild(el);
+        }
+        el.innerHTML = html;
+    } catch(e) { console.warn('Forecast fetch:', e); }
 }
 
 // ─── Real aircraft from OpenSky Network (free, no key, 10-min cache on server)
@@ -1070,6 +1276,30 @@ function renderTrafficItem(item) {
     </div>`;
 }
 
+function renderWaikikiTrafficCard(item) {
+    const raw = item.raw || {};
+    const imgUrl = raw.image_url;
+    const visits = raw.visit_count || 1;
+    
+    let imgHtml = '';
+    if (imgUrl) {
+        imgHtml = `<img src="${imgUrl}" class="traffic-image">`;
+    } else {
+        imgHtml = `<div class="traffic-image-placeholder">${item.icon}</div>`;
+    }
+
+    return `
+    <div class="traffic-card" style="border-left-color:${item.color};">
+        <div class="traffic-card-left">${imgHtml}</div>
+        <div class="traffic-card-right">
+            <div class="tc-title">${item.name}</div>
+            <div class="tc-sub">${item.sub}</div>
+            <div class="tc-detail">${item.detail.replace(/\n/g, '<br>')}</div>
+            <div class="tc-visits">Observed Visits: ${visits}</div>
+        </div>
+    </div>`;
+}
+
 function getShipItems() {
     const ships = liveData.ships || [];
     if (!ships.length) return [{ noAis: true }];
@@ -1101,6 +1331,67 @@ function renderShipItem(item) {
 // =====================================================================
 // UI STATE MACHINE
 // =====================================================================
+
+function updateLegend(type) {
+    let el = document.getElementById('particle-legend');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'particle-legend';
+        el.style.position = 'absolute';
+        el.style.bottom = '20px';
+        el.style.left = '20px';
+        el.style.zIndex = '999';
+        el.style.background = 'rgba(0, 0, 0, 0.75)';
+        el.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+        el.style.padding = '10px';
+        el.style.borderRadius = '6px';
+        el.style.color = '#fff';
+        el.style.width = '240px';
+        el.style.backdropFilter = 'blur(4px)';
+        el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+        el.style.display = 'none';
+        document.getElementById('viewport-scaler').appendChild(el);
+    }
+    
+    if (type === 'none' || !type) {
+        el.style.display = 'none';
+        return;
+    }
+
+    let html = '';
+    if (type === 'wind') {
+        html = `
+            <div style="margin-bottom:12px;">
+                <div style="font-weight:bold; font-size:11px; color:#4facfe; text-transform:uppercase; margin-bottom:4px;">BASE REFLECTIVITY RADAR</div>
+                <div style="font-size:9.5px; color:#dfe6e9; margin-bottom:4px;"><b>Source: NWS Hawaii Regional Radar</b></div>
+                <div style="font-size:9.5px; color:#b2bec3; line-height:1.3; margin-bottom:8px;">Color indicates precipitation intensity (dBZ).</div>
+                <div style="height:6px; width:100%; border-radius:3px; background: linear-gradient(to right, #00FF00, #FFFF00, #FF0000, #FF00FF, #FFFFFF);"></div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>Light</span><span>Moderate</span><span>Heavy</span><span>Extreme</span></div>
+            </div>
+            <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 10px;">
+                <div style="font-weight:bold; font-size:11px; color:#4facfe; text-transform:uppercase; margin-bottom:4px;">SURFACE WIND FIELD</div>
+                <div style="font-size:9.5px; color:#dfe6e9; margin-bottom:4px;"><b>Model: NOAA / GFS (0.25A)</b></div>
+                <div style="font-size:9.5px; color:#b2bec3; line-height:1.3; margin-bottom:8px;">Particle trails show wind direction, color-coded by wind speed (knots).</div>
+                <div style="height:6px; width:100%; border-radius:3px; background: linear-gradient(to right, #ffffff, #00f2fe, #4facfe, #1dd1a1, #feca57, #ff9f43, #ee5253);"></div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>0</span><span>15</span><span>30+ kts</span></div>
+            </div>
+        `;
+    } else if (type === 'wave') {
+        html = `
+            <div>
+                <div style="font-weight:bold; font-size:11px; color:#4facfe; text-transform:uppercase; margin-bottom:4px;">SIGNIFICANT SWELL</div>
+                <div style="font-size:9.5px; color:#dfe6e9; margin-bottom:4px;"><b>Model: NOAA / WW3 Global</b></div>
+                <div style="font-size:9.5px; color:#b2bec3; line-height:1.3; margin-bottom:8px;">Particle trails show peak swell direction, color-coded by wave height (ft).</div>
+                <div style="height:6px; width:100%; border-radius:3px; background: linear-gradient(to right, #00008b, #0000ff, #00bfff, #00fa9a, #ffd700, #ff00ff, #ff0000);"></div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>0</span><span>8</span><span>15+ ft</span></div>
+            </div>
+        `;
+    }
+
+    el.innerHTML = html;
+    el.style.display = 'block';
+}
+
 const uiStates = [
     // ── 0: METEOROLOGICAL — STATIONS + DERIVED WIND FIELD ─────────────
     // One unified weather view: NWS Doppler radar backdrop, a uniform box at
@@ -1112,15 +1403,25 @@ const uiStates = [
         layersOn:  [radarLayerGroup, stationLayer, windLayer],
         layersOff: [airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
         renderStatic: () => '',
-        onEnter() { document.getElementById('main-dash').classList.add('hud-hidden'); },
-        onExit()  { document.getElementById('main-dash').classList.remove('hud-hidden'); }
+        onEnter() { 
+            document.getElementById('main-dash').classList.add('hud-hidden'); 
+            const fb = document.getElementById('forecast-box');
+            if (fb) fb.style.display = 'block';
+            updateLegend('wind');
+        },
+        onExit()  { 
+            document.getElementById('main-dash').classList.remove('hud-hidden'); 
+            const fb = document.getElementById('forecast-box');
+            if (fb) fb.style.display = 'none';
+            updateLegend('none');
+        }
     },
-    // ── 2: SURF & OCEAN — combined surf cards + buoy HUDs ────────────
+    // ── 1: SURF & OCEAN — combined surf cards + buoy HUDs ────────────
     {
         id: 'state-surf',
         title: "SURF & OCEAN", sub: "NDBC · WAVE + BUOY + CURRENTS", duration: 9000,
-        layersOn:  [buoyLayer, surfLayer, currentLayer, tideLayer, oceanHazardLayer],
-        layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, quakeLayer, lightningLayer, denseDepthLayer],
+        layersOn:  [buoyLayer, surfLayer, currentLayer, tideLayer, dynamicAlertMarkers, waveLayer],
+        layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, quakeLayer, lightningLayer, denseDepthLayer, windLayer],
         renderStatic() {
             const buoys  = liveData.buoys || [];
             const active = buoys.filter(b => !b.error && b.waveHeight != null);
@@ -1172,11 +1473,6 @@ const uiStates = [
                         <div style="font-size: 9.5px; color: #dfe6e9; white-space: normal; line-height: 1.4;">${a.headline || a.desc || ''}</div>
                     </div>`;
                 }).join('');
-            } else {
-                oceanWarningsHtml = `<div class="warning-banner" style="margin-top:10px; background: rgba(255,159,67,0.15); border-color: #ff9f43; color: #ff9f43; text-align: left; padding: 10px;">
-                    <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">⚠️ Small Craft Advisory</div>
-                    <div style="font-size: 9.5px; color: #dfe6e9; white-space: normal; line-height: 1.4;">Oahu South Shore waters.<br>East winds 20 to 25 knots. Seas 7 to 10 feet.<br>Conditions hazardous to small craft.</div>
-                </div>`;
             }
 
             return `<div class="metric-grid">
@@ -1188,18 +1484,18 @@ const uiStates = [
             ${buoyDataHtml}
             ${oceanWarningsHtml}`;
         },
-        onEnter() { setSurfMode('large'); },   // big boxed cards + declutter
-        onExit()  { setSurfMode('small'); }    // compact pins everywhere else
+        onEnter() { setSurfMode('large'); updateLegend('wave'); },   // big boxed cards + declutter
+        onExit()  { setSurfMode('small'); updateLegend('none'); }    // compact pins everywhere else
     },
 
-    // ── 6: TRAFFIC — COMBINED (WIDE) ──────────────────────────────────
+    // ── 2: TRAFFIC — COMBINED (WIDE) ──────────────────────────────────
     {
         title: "TRAFFIC — COMBINED", sub: "FLIGHT & VESSEL TRACKING", perPageMs: 3500,
         layersOn:  [airLayer, shipLayer, airportLayer],
         layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
         getItems: getTrafficItems, renderItem: renderTrafficItem
     },
-    // ── 8: TRAFFIC — COMBINED (harbor approach zoom-in) ───────────────
+    // ── 3: TRAFFIC — COMBINED (harbor approach zoom-in) ───────────────
     {
         title: "TRAFFIC — COMBINED", sub: "HONOLULU HARBOR APPROACH", perPageMs: 3500,
         view: 'harbor',
@@ -1209,7 +1505,52 @@ const uiStates = [
         pageSize: 8,
         holdExtraMs: 3000,   // linger on the last page so the zoom is appreciated
     },
-    // ── 9: HAZARD MONITOR — SEISMIC + LIGHTNING + TURBULENCE ──────────
+    // ── 4: TRAFFIC — WAIKIKI & DIAMOND HEAD ───────────────
+    {
+        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3500,
+        view: 'waikiki',
+        layersOn:  [airLayer, shipLayer, superDenseDepthLayer, airportLayer],
+        layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
+        duration: 10000,
+        renderStatic() {
+            const bounds = map.getBounds();
+            const items = [];
+            
+            // Filter Ships
+            (liveData.ships || []).forEach(v => {
+                if (v.lat != null && v.lng != null && bounds.contains([v.lat, v.lng])) {
+                    items.push({
+                        icon: '🚢', name: v.name,
+                        detail: v.sog != null ? `${v.sog.toFixed(1)} kt` : '--',
+                        sub: shipTypeLabel(v.type), color: '#0984e3',
+                        raw: v
+                    });
+                }
+            });
+
+            // Filter Aircraft
+            (liveData.aircraft || []).forEach(a => {
+                if (a.lat != null && a.lon != null && bounds.contains([a.lat, a.lon])) {
+                    let detail = `Reg: ${a.registration || 'UNK'} Type: ${a.acType || 'UNK'}`;
+                    if (a.origin && a.dest) detail += `\nRoute: ${a.origin} -> ${a.dest}`;
+                    items.push({
+                        icon: a.type === '🚁' ? '🚁' : '✈️', name: a.callsign || a.registration || 'UNK',
+                        detail: detail,
+                        sub: a.route || 'Local flight',
+                        color: a.type === '🚁' ? '#ffd32a' : '#1dd1a1',
+                        raw: a
+                    });
+                }
+            });
+
+            let html = '';
+            const slice = items.slice(0, 3);
+            if (!slice.length) html = '<div class="data-row">No traffic in area</div>';
+            else slice.forEach(t => html += renderWaikikiTrafficCard(t));
+            return `<div id="hud-waikiki-traffic" style="height: 100%; display: flex; flex-direction: column; gap: 8px;">${html}</div>`;
+        }
+    },
+    // ── 5: HAZARD MONITOR — SEISMIC + LIGHTNING + TURBULENCE ──────────
     {
         id: 'state-hazard',
         title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", duration: 10000,
@@ -1243,18 +1584,18 @@ const uiStates = [
             return `<div class="hazard-legend">
                 <div class="legend-title">HAZARD STATUS</div>
                 <div class="legend-section">
-                    <div class="legend-row"><span class="leg-dot" style="background:#ee5253;"></span><span>M3.0+ Quake / Sev. Alert</span></div>
-                    <div class="legend-row"><span class="leg-dot" style="background:#ff9f43;"></span><span>M2.0–2.9 Quake / Mod. Alert</span></div>
-                    <div class="legend-row"><span class="leg-dot" style="background:#ffd32a;"></span><span>&lt;M2.0 Micro-seismic</span></div>
-                    <div class="legend-row"><span class="leg-dot" style="background:#a29bfe;"></span><span>NWS Lightning / Minor Alert</span></div>
-                    <div class="legend-row"><span class="leg-dot" style="background:#e84393;"></span><span>High-Level Turbulence</span></div>
-                    <div class="legend-row"><span class="leg-dot" style="background:#fdcb6e;"></span><span>Low-Level Turbulence</span></div>
+                    <div class="legend-row"><span class="leg-dot" style="background:#ee5253;"></span><span>M3.0+ Quake / Hurricane</span></div>
+                    <div class="legend-row"><span class="leg-dot" style="background:#ff9f43;"></span><span>M2.0+ Quake / Sm Craft Adv</span></div>
+                    <div class="legend-row"><span class="leg-dot" style="background:#1dd1a1;"></span><span>High Surf Adv / Warning</span></div>
+                    <div class="legend-row"><span class="leg-dot" style="background:#e84393;"></span><span>Gale Warn / Hi-Lvl Turb</span></div>
+                    <div class="legend-row"><span class="leg-dot" style="background:#a29bfe;"></span><span>Lightning / Minor Alert</span></div>
+                    <div class="legend-row"><span class="leg-dot" style="background:#fdcb6e;"></span><span>Low Turb / Micro-seismic</span></div>
                 </div>
             </div>
             <div class="data-list" style="margin-top:4px;">${bigRows}${alertRows}</div>`;
         }
     },
-    // ── 10: SATELLITE — GOES-WEST ───────────────────────────────────────
+    // ── 6: SATELLITE — GOES-WEST ───────────────────────────────────────
     {
         title: "SATELLITE — GOES-WEST", sub: "LAST 12 HOURS · GEOCOLOR", duration: 10000,
         view: 'hawaii',
@@ -1386,8 +1727,9 @@ function transitionState() {
     [
         stationLayer, surfLayer, currentLayer, alertLayer, turbulenceLayer, 
         airportLayer, hazardTextLayer, quakeLayer, lightningLayer, denseDepthLayer,
+        superDenseDepthLayer,
         aqiLayer, airLayer, shipLayer, buoyLayer, tideLayer, radarLayerGroup,
-        oceanHazardLayer, windLayer
+        oceanHazardLayer, windLayer, waveLayer
     ].forEach(l => {
         if (!state.layersOn || state.layersOn.indexOf(l) === -1) {
             if (map.hasLayer(l)) map.removeLayer(l);
@@ -1419,6 +1761,13 @@ function transitionState() {
                     map.setMaxBounds(bounds);
                 }
             }, 1900);
+        } else if (currView === 'waikiki') {
+            map.flyToBounds([[21.23, -157.82], [21.285, -157.72]], { animate: true, duration: 1.8 });
+            setTimeout(() => {
+                if (uiStates[currentStateIndex].view === 'waikiki') {
+                    map.setMaxBounds(bounds);
+                }
+            }, 1900);
         } else if (currView === 'hawaii') {
             map.setMinZoom(7);
             map.flyToBounds([[18.7, -156.0], [21.9, -158.3]], { animate: true, duration: 1.8, padding: [30, 30] });
@@ -1426,7 +1775,6 @@ function transitionState() {
     }
 
     // Re-flow surf/buoy labels now that layer visibility may have changed
-    // (flyTo states also re-flow on their moveend event).
     declutterLabels();
 
     // Header labels
@@ -1475,13 +1823,15 @@ function transitionState() {
 // =====================================================================
 // BOOT — prefetch all data, then start rotation + schedule refreshes
 // =====================================================================
-// Non-blocking fetches (slow/rate-limited APIs — don't hold up the boot)
+// Non-blocking fetches (slow/rate-limited APIs - don't hold up the boot)
 fetchAircraft();
 fetchShips();
 fetchStations();
 fetchCurrents();
 fetchTide();
 fetchWind();
+fetchWaves();
+fetch7DayForecast();
 
 Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()]).finally(() => {
     // Start rotation immediately after base data loads
@@ -1497,4 +1847,6 @@ Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTu
     setInterval(fetchStations,    2 * 60 * 1000);
     setInterval(fetchCurrents,    2 * 60 * 1000); // marine model updates slowly
     setInterval(fetchTide,        2 * 60 * 1000);
+    setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
+

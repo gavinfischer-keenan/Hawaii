@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logAircraftObservation, getAircraftMeta } from "../db";
 
 const router = Router();
 
@@ -107,7 +108,15 @@ router.get("/aircraft", async (req, res) => {
 
     const enriched = aircraft.map((a) => {
       const route = routeCache.get(a.callsign) ?? null;
-      return { ...a, origin: route?.origin ?? null, dest: route?.dest ?? null };
+      logAircraftObservation(a.icao24, a.callsign);
+      const meta = getAircraftMeta(a.icao24);
+      return { 
+        ...a, 
+        origin: route?.origin ?? null, 
+        dest: route?.dest ?? null,
+        visit_count: meta?.visit_count ?? 1,
+        image_url: meta?.image_url ?? null
+      };
     });
 
     const data = { aircraft: enriched, fetchedAt: Date.now(), dataTime: json.now ?? null };

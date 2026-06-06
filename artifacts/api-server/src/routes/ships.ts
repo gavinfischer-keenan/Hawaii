@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { logger } from "../lib/logger";
+import { logVesselObservation, getVesselMeta } from "../db";
 
 const router = Router();
 
@@ -104,6 +105,7 @@ function connect() {
         v.sog = p.Sog ?? v.sog;
         v.cog = p.Cog ?? v.cog;
         v.heading = p.TrueHeading != null && p.TrueHeading !== 511 ? p.TrueHeading : v.heading;
+        logVesselObservation(mmsi, v.name, v.type);
       } else if (msg.MessageType === "ShipStaticData") {
         const s = msg.Message?.ShipStaticData ?? {};
         v.type = s.Type ?? v.type;
@@ -152,7 +154,15 @@ router.get("/ships", (_req, res) => {
   for (const [mmsi, v] of vessels) {
     if (v.updatedAt < cutoff) vessels.delete(mmsi);
   }
-  const ships = [...vessels.values()];
+  
+  const ships = [...vessels.values()].map(v => {
+    const meta = getVesselMeta(v.mmsi);
+    return {
+      ...v,
+      visit_count: meta?.visit_count ?? 1,
+      image_url: meta?.image_url ?? null
+    };
+  });
 
   res.json({ ships, connected, fetchedAt: Date.now() });
 });

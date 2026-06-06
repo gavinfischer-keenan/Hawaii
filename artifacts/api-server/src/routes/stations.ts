@@ -13,7 +13,7 @@ const STATIONS: Array<{ id: string; name: string; lat: number; lng: number }> = 
   { id: "PHMK", name: "Molokai (MKK)", lat: 21.1529, lng: -157.0964 },
   { id: "PHJH", name: "West Maui (JHM)", lat: 20.9629, lng: -156.6739 },
   { id: "PHNY", name: "Lanai (LNY)", lat: 20.7856, lng: -156.9514 },
-  { id: "G7197", name: "Haleiwa (North Shore)", lat: 21.5888, lng: -158.1145 },
+  { id: "PHDH", name: "Dillingham Airfield", lat: 21.5794, lng: -158.1972 },
 ];
 
 let cache: { data: unknown; expiresAt: number } | null = null;

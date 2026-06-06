@@ -324,10 +324,7 @@ body, html {
     font-weight: 900;
 }
 
-/* legacy class kept so old refs don't error */
-.surf-label {
-    display: none;
-}
+
 
 .poi-label {
     background: transparent; 
@@ -532,7 +529,7 @@ body, html {
     font-family: monospace;
 }
 
-/* Removed NOAA FORECAST WINDS cruft */
+
 
 /* Meteorological page: hide the bottom-left data panel — the map is the readout. */
 #main-dash.hud-hidden { display: none !important; }
@@ -572,44 +569,64 @@ body, html {
     flex-shrink: 0;
     box-shadow: 0 0 4px currentColor;
 }
-.wx-naked {
-    font-family: 'Inter', sans-serif;
-    font-weight: 800;
-    color: #ffda79;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.8), -1px -1px 3px rgba(0,0,0,0.8), 1px -1px 3px rgba(0,0,0,0.8), -1px 1px 3px rgba(0,0,0,0.8);
+
+
+.traffic-card {
+    display: flex;
+    background: rgba(10, 20, 30, 0.85);
+    border-radius: 8px;
+    border-left: 4px solid #fff;
+    margin-bottom: 8px;
+    padding: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    min-height: 80px;
+}
+.traffic-card-left {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    margin-right: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.05);
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
 }
-.wx-naked-temp {
-    font-size: 16px;
-    z-index: 2;
+.traffic-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
-.wx-naked-wind-arrow {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform-origin: left center;
-    height: 2px;
-    background: rgba(255, 255, 255, 0.8);
+.traffic-image-placeholder {
+    font-size: 32px;
+    opacity: 0.5;
+}
+.traffic-card-right {
+    flex-grow: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1;
+    flex-direction: column;
+    justify-content: space-between;
 }
-.wx-naked-wind-arrow::after {
-    content: '';
-    position: absolute;
-    right: -4px;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-left: 6px solid rgba(255, 255, 255, 0.8);
-}
-.wx-naked-wind-speed {
-    font-size: 10px;
+.tc-title {
+    font-size: 14px;
+    font-weight: bold;
     color: #fff;
-    background: rgba(0,0,0,0.5);
-    padding: 1px 3px;
-    border-radius: 3px;
+}
+.tc-sub {
+    font-size: 12px;
+    color: #b2bec3;
+    margin-top: 2px;
+}
+.tc-detail {
+    font-size: 11px;
+    color: #81ecec;
+    margin-top: 4px;
+}
+.tc-visits {
+    font-size: 10px;
+    color: #fdcb6e;
+    font-style: italic;
+    margin-top: 4px;
+    text-align: right;
 }

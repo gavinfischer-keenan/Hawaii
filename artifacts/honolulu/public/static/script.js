@@ -1304,13 +1304,20 @@ function isVesselInPort(v) {
 // ── COMBINED TRAFFIC items (aircraft + live AIS vessels) ──────────────
 function getTrafficItems() {
     const items = [];
-    getAviationItems().slice(0, 6).forEach(a =>
-        items.push({ icon: a.type, name: a.call, detail: `${a.alt}`, sub: a.route,
-                     color: a.type === '🚁' ? '#ffd32a' : '#1dd1a1' }));
+    const currView = typeof currentStateIndex !== 'undefined' ? (uiStates[currentStateIndex]?.view || 'oahu') : 'oahu';
+    let b;
+    if (currView === 'harbor') b = L.latLng([21.29, -157.84]).toBounds(8000); 
+    else b = L.latLngBounds([[20.994, -158.45], [21.75, -157.00]]);
+
+    getAviationItems()
+        .filter(a => a.lat != null && a.lng != null && b.contains([a.lat, a.lng]))
+        .forEach(a => items.push({ icon: a.type, name: a.call, detail: `${a.alt}`, sub: a.route, color: a.type === '🚁' ? '#ffd32a' : '#1dd1a1' }));
+        
     const ships = (liveData.ships || [])
-        .filter(v => !isVesselInPort(v))
-        .sort((a, b) => (b.sog || 0) - (a.sog || 0))
-        .slice(0, 6);
+        .filter(v => v.lat != null && v.lng != null && b.contains([v.lat, v.lng]))
+        .filter(v => currView !== 'oahu' || !isVesselInPort(v))
+        .sort((a, b) => (b.sog || 0) - (a.sog || 0));
+
     if (ships.length) {
         ships.forEach(v => items.push({
             icon: '🚢', name: v.name,
@@ -1323,6 +1330,50 @@ function getTrafficItems() {
     }
     return items;
 }
+
+function getWaikikiTrafficItems() {
+    const items = [];
+    const b = L.latLngBounds([21.23, -157.82], [21.285, -157.72]);
+
+    // Filter Ships
+    (liveData.ships || []).forEach(v => {
+        if (v.lat != null && v.lng != null && b.contains([v.lat, v.lng])) {
+            items.push({
+                icon: '🚢', name: v.name,
+                detail: v.sog != null ? `${v.sog.toFixed(1)} kt` : '--',
+                sub: shipTypeLabel(v.type), color: '#0984e3',
+                raw: v
+            });
+        }
+    });
+
+    // Filter Aircraft
+    (liveData.aircraft || []).forEach(a => {
+        // Aircraft from API have .lon instead of .lng
+        const lng = a.lon != null ? a.lon : a.lng;
+        if (a.lat != null && lng != null && b.contains([a.lat, lng])) {
+            let detail = `Reg: ${a.registration || 'UNK'} Type: ${a.acType || 'UNK'}`;
+            if (a.origin && a.dest) detail += `\nRoute: ${a.origin} -> ${a.dest}`;
+            items.push({
+                icon: a.type === '🚁' ? '🚁' : '✈️', name: a.callsign || a.registration || 'UNK',
+                detail: detail,
+                sub: a.route || 'Local flight',
+                color: a.type === '🚁' ? '#ffd32a' : '#1dd1a1',
+                raw: a
+            });
+        }
+    });
+    
+    if (!items.length) {
+        items.push({
+            icon: '🏝️', name: 'No traffic in area',
+            detail: '', sub: '', color: '#636e72',
+            raw: {}
+        });
+    }
+    return items;
+}
+
 function renderTrafficItem(item) {
     return `<div class="data-row" style="border-left-color:${item.color};">
         <div><div class="row-primary">${item.icon} ${item.name}</div><div class="row-secondary">${item.sub}</div></div>
@@ -1561,48 +1612,11 @@ const uiStates = [
     },
     // ── 4: TRAFFIC — WAIKIKI & DIAMOND HEAD ───────────────
     {
-        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3500,
+        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3500, pageSize: 3,
         view: 'waikiki',
         layersOn:  [airLayer, shipLayer, superDenseDepthLayer, airportLayer],
         layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
-        duration: 10000,
-        renderStatic() {
-            const bounds = map.getBounds();
-            const items = [];
-            
-            // Filter Ships
-            (liveData.ships || []).forEach(v => {
-                if (v.lat != null && v.lng != null && bounds.contains([v.lat, v.lng])) {
-                    items.push({
-                        icon: '🚢', name: v.name,
-                        detail: v.sog != null ? `${v.sog.toFixed(1)} kt` : '--',
-                        sub: shipTypeLabel(v.type), color: '#0984e3',
-                        raw: v
-                    });
-                }
-            });
-
-            // Filter Aircraft
-            (liveData.aircraft || []).forEach(a => {
-                if (a.lat != null && a.lon != null && bounds.contains([a.lat, a.lon])) {
-                    let detail = `Reg: ${a.registration || 'UNK'} Type: ${a.acType || 'UNK'}`;
-                    if (a.origin && a.dest) detail += `\nRoute: ${a.origin} -> ${a.dest}`;
-                    items.push({
-                        icon: a.type === '🚁' ? '🚁' : '✈️', name: a.callsign || a.registration || 'UNK',
-                        detail: detail,
-                        sub: a.route || 'Local flight',
-                        color: a.type === '🚁' ? '#ffd32a' : '#1dd1a1',
-                        raw: a
-                    });
-                }
-            });
-
-            let html = '';
-            const slice = items.slice(0, 3);
-            if (!slice.length) html = '<div class="data-row">No traffic in area</div>';
-            else slice.forEach(t => html += renderWaikikiTrafficCard(t));
-            return `<div id="hud-waikiki-traffic" style="height: 100%; display: flex; flex-direction: column; gap: 8px;">${html}</div>`;
-        }
+        getItems: getWaikikiTrafficItems, renderItem: renderWaikikiTrafficCard
     },
     // ── 5: HAZARD MONITOR — SEISMIC + LIGHTNING + TURBULENCE ──────────
     {

@@ -1504,7 +1504,7 @@ const uiStates = [
     // flow field whose arrows curl around the islands. No bottom-left data
     // panel here — the map itself is the readout.
     {
-        title: "METEOROLOGICAL", sub: "NWS RADAR · WIND VECTOR · STATIONS", duration: 13500,
+        title: "METEOROLOGICAL", sub: "NWS RADAR · WIND VECTOR · STATIONS", duration: 11500,
         layersOn:  [radarLayerGroup, stationLayer, windLayer],
         layersOff: [airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
         renderStatic: () => '',
@@ -1612,7 +1612,7 @@ const uiStates = [
     },
     // ── 4: TRAFFIC — WAIKIKI & DIAMOND HEAD ───────────────
     {
-        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3500, pageSize: 3,
+        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3500, pageSize: 3, holdExtraMs: 3000,
         view: 'waikiki',
         layersOn:  [airLayer, shipLayer, superDenseDepthLayer, airportLayer],
         layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
@@ -1621,7 +1621,7 @@ const uiStates = [
     // ── 5: HAZARD MONITOR — SEISMIC + LIGHTNING + TURBULENCE ──────────
     {
         id: 'state-hazard',
-        title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", perPageMs: 3500, pageSize: 6, holdExtraMs: 2000,
+        title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", perPageMs: 3500, pageSize: 6, holdExtraMs: 4000,
         view: 'hawaii',
         layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer, sparseDepthLayer, deepOceanAirLayer],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer],

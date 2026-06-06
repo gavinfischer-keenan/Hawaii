@@ -276,6 +276,13 @@ body, html {
 .traffic-label-air { 
     color: #1dd1a1; 
 }
+.deep-ocean-air {
+    color: #00d2d3;
+    font-size: 16px;
+    font-weight: 800;
+    text-shadow: 0 0 10px #00d2d3, 0 0 15px #00d2d3, -1px -1px 3px #000, 1px 1px 3px #000;
+    z-index: 1000 !important;
+}
 
 .surf-card {
     background: rgba(7, 12, 24, 0.93);

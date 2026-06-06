@@ -322,10 +322,10 @@ for (let lat = 21.22; lat <= 21.30; lat += 0.005) {
 // =====================================================================
 const rngSparse = makeSeededRng(0xDEADBEEF);
 
-for (let lat = 20.8; lat <= 21.9; lat += 0.08) {
-    for (let lng = -158.6; lng <= -156.8; lng += 0.08) {
-        const jLat = lat + (rngSparse() - 0.5) * 0.03;
-        const jLng = lng + (rngSparse() - 0.5) * 0.03;
+for (let lat = 18.5; lat <= 22.5; lat += 0.15) {
+    for (let lng = -160.5; lng <= -154.5; lng += 0.15) {
+        const jLat = lat + (rngSparse() - 0.5) * 0.05;
+        const jLng = lng + (rngSparse() - 0.5) * 0.05;
         if (isOnLand(jLat, jLng)) continue;
 
         const kmOff = distToShoreKm(jLat, jLng);
@@ -1093,8 +1093,9 @@ async function fetchAircraft() {
             const kmOff = distToShoreKm(a.lat, a.lng);
             if (kmOff > 80.4) {
                 a.isDeepOcean = true;
+                const deepCls = cls + ' deep-ocean-air';
                 const deepMarker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
-                    icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20] })
+                    icon: L.divIcon({ className: deepCls, html: label, iconSize: [200, 20] })
                 });
                 deepMarker.addTo(deepOceanAirLayer);
             } else {
@@ -1268,7 +1269,7 @@ function getDeepOceanFlightItems() {
 function renderAviationItem(item) {
     const isHelo = item.type === '🚁';
     const color  = isHelo ? '#ffd32a' : '#10ac84';
-    return `<div class="data-row" style="border-left-color:${color};">
+    return `<div class="data-row" style="border-left-color:${color}; padding: 6px 12px; font-size: 0.9em;">
         <div><div class="row-primary">${item.type} ${item.call}</div><div class="row-secondary">${item.route}</div></div>
         <div class="row-meta">${item.alt}<br><span style="font-size:0.75em;color:#a4b0be;">${item.spd}</span></div>
     </div>`;
@@ -1606,12 +1607,13 @@ const uiStates = [
     // ── 5: HAZARD MONITOR — SEISMIC + LIGHTNING + TURBULENCE ──────────
     {
         id: 'state-hazard',
-        title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", duration: 10000,
+        title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", perPageMs: 3500, pageSize: 6, holdExtraMs: 2000,
         view: 'hawaii',
         layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer, sparseDepthLayer, deepOceanAirLayer],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer],
+        getItems: getDeepOceanFlightItems, renderItem: renderAviationItem,
         renderStatic() {
-            return `<div class="hazard-legend">
+            return `<div class="hazard-legend" style="margin-bottom: 8px;">
                 <div class="legend-title">HAZARD STATUS</div>
                 <div class="legend-section">
                     <div class="legend-row"><span class="leg-dot" style="background:#ee5253;"></span><span>M3.0+ Quake / Hurricane</span></div>
@@ -1624,15 +1626,7 @@ const uiStates = [
             </div>`;
         }
     },
-    // ── 6: TRAFFIC — DEEP OCEAN ───────────────────────────────────────
-    {
-        title: "TRAFFIC — DEEP OCEAN", sub: "OFFSHORE FLIGHTS (>50 MILES)", perPageMs: 3500,
-        view: 'hawaii',
-        layersOn:  [deepOceanAirLayer, airportLayer, sparseDepthLayer, hazardTextLayer],
-        layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer, airLayer, shipLayer, alertLayer, turbulenceLayer],
-        getItems: getDeepOceanFlightItems, renderItem: renderAviationItem
-    },
-    // ── 7: SATELLITE — GOES-WEST ───────────────────────────────────────
+    // ── 6: SATELLITE — GOES-WEST ───────────────────────────────────────
     {
         title: "SATELLITE — GOES-WEST", sub: "LAST 12 HOURS · GEOCOLOR", duration: 10000,
         view: 'hawaii',
@@ -1834,7 +1828,8 @@ function transitionState() {
         const pageHint   = totalPages > 1
             ? `<div class="page-indicator">${currentPage + 1} / ${totalPages}</div>`
             : '';
-        contentEl.innerHTML = `<div class="data-list">${pageItems.map(state.renderItem).join('')}</div>${pageHint}`;
+        const staticHtml = state.renderStatic ? state.renderStatic() : '';
+        contentEl.innerHTML = `${staticHtml}<div class="data-list">${pageItems.map(state.renderItem).join('')}</div>${pageHint}`;
 
         const isLast = currentPage + 1 >= totalPages;
         const dwell  = (state.perPageMs ?? 3000) + (isLast ? (state.holdExtraMs ?? 0) : 0);

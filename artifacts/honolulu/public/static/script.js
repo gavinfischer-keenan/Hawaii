@@ -2,17 +2,25 @@
 // HONOLULU COMMAND CENTER — script.js
 // =====================================================================
 
-// --- MAP SETUP ---
-const bounds = [[20.75, -158.45], [21.75, -156.45]];
+// --- VIEWPORT SCALING ---
+// Absolutely locks the resolution to 1920x1080 regardless of window size.
+function applyScale() {
+    const ww = window.innerWidth, wh = window.innerHeight;
+    const scale = Math.min(ww / 1920, wh / 1080);
+    document.getElementById('viewport-scaler').style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', applyScale);
+applyScale();
 
-// minZoom 10 (not 9): at zoom 9 the ~2°-wide island-chain bounds are narrower
-// than the wide 16:9 viewport, so the view overflows the bounds and looks "way
-// zoomed out". Zoom 10 is the tightest level where the bounds fill the screen —
-// it's also the level every flyTo returns to, so boot + every page now match.
+// --- MAP SETUP ---
+const bounds = [[20.994, -158.45], [21.75, -157.00]];
+
+// zoomSnap: 0 allows Leaflet to compute the exact fractional zoom needed to fit
+// the 1920x1080 container without any padding or rounding.
 var map = L.map('map', {
     zoomControl: false, attributionControl: false,
-    minZoom: 10, maxZoom: 12, maxBounds: bounds, maxBoundsViscosity: 1.0
-}).setView([21.265, -157.785], 10);
+    zoomSnap: 0, minZoom: 0, maxZoom: 12, maxBounds: bounds, maxBoundsViscosity: 1.0
+}).fitBounds(bounds);
 // Prevent all user interaction — map is display-only; programmatic flyTo still works
 map.dragging.disable(); map.touchZoom.disable(); map.doubleClickZoom.disable();
 map.scrollWheelZoom.disable(); map.boxZoom.disable(); map.keyboard.disable();
@@ -20,7 +28,6 @@ map.scrollWheelZoom.disable(); map.boxZoom.disable(); map.keyboard.disable();
 // --- Z-INDEX PANES ---
 map.createPane('depthPane');   map.getPane('depthPane').style.zIndex   = 200;
 map.createPane('aqiPane');     map.getPane('aqiPane').style.zIndex     = 250;
-map.createPane('windPane');    map.getPane('windPane').style.zIndex    = 300;
 map.createPane('radarPane');   map.getPane('radarPane').style.zIndex   = 350;
 map.createPane('currentPane'); map.getPane('currentPane').style.zIndex = 400;
 map.createPane('trafficPane'); map.getPane('trafficPane').style.zIndex = 500;
@@ -28,6 +35,7 @@ map.createPane('surfPane');    map.getPane('surfPane').style.zIndex    = 550;
 map.createPane('poiPane');     map.getPane('poiPane').style.zIndex     = 600;
 map.createPane('hazardPane');  map.getPane('hazardPane').style.zIndex  = 650;
 map.createPane('islandPane');  map.getPane('islandPane').style.zIndex  = 670;
+map.createPane('windPane');    map.getPane('windPane').style.zIndex    = 380;
 
 // --- BASE TILES ---
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13 }).addTo(map);
@@ -49,8 +57,8 @@ var staticPoiLayer  = L.layerGroup().addTo(map);
 
 // Panel-toggled layers:
 var radarLayerGroup = L.layerGroup();
-var windLayer       = L.layerGroup();
 var currentLayer    = L.layerGroup();
+var windLayer       = L.layerGroup();
 var buoyLayer       = L.layerGroup();
 var quakeLayer      = L.layerGroup();
 var lightningLayer  = L.layerGroup();
@@ -61,8 +69,58 @@ var stationLayer    = L.layerGroup();   // land weather stations (NWS) — shown
 var alertLayer      = L.layerGroup();
 var turbulenceLayer = L.layerGroup();
 var airportLayer    = L.layerGroup();
+var tideLayer       = L.layerGroup();
+var hazardTextLayer = L.layerGroup();
+var oceanHazardLayer = L.layerGroup();
 // Dense bathymetry — only added to map during Traffic Combined zoom-in
 var denseDepthLayer = L.layerGroup();
+
+// --- POPULATE HAZARD TEXT LAYER ---
+const southShoreCoords = [
+    [21.310,-157.650], [21.268,-157.700], [21.252,-157.805],
+    [21.282,-157.845], [21.300,-157.875], [21.300,-158.020], [21.297,-158.103]
+];
+// Highlight the coast
+L.polyline(southShoreCoords, { color: '#ff9f43', weight: 4, opacity: 0.9, pane: 'hazardPane' }).addTo(hazardTextLayer);
+L.polyline(southShoreCoords, { color: '#ff9f43', weight: 4, opacity: 0.9, pane: 'hazardPane' }).addTo(oceanHazardLayer);
+
+// Box location
+const scaBoxLatLng = [20.6, -158.1];
+
+// Leader line from Diamond Head to the box
+L.polyline([[21.252, -157.805], scaBoxLatLng], { color: '#ff9f43', weight: 1.5, dashArray: '4,4', opacity: 0.8, pane: 'hazardPane' }).addTo(hazardTextLayer);
+
+// Small Craft Advisory Box
+const scaHtml = `<div style="background: rgba(255, 159, 67, 0.15); border: 1px solid #ff9f43; padding: 10px; border-radius: 6px; width: 260px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+    <div style="color: #ff9f43; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">Small Craft Advisory</div>
+    <div style="color: #dfe6e9; line-height: 1.4;">Oahu South Shore waters.<br>East winds 20 to 25 knots. Seas 7 to 10 feet.<br>Conditions hazardous to small craft.</div>
+</div>`;
+L.marker(scaBoxLatLng, {
+    pane: 'hazardPane',
+    icon: L.divIcon({ className: '', html: scaHtml, iconSize: [260, 80], iconAnchor: [0, 40] })
+}).addTo(hazardTextLayer);
+
+// Airmet Box location
+const airmetBoxLatLng = [19.9, -158.1];
+const airmetHtml = `<div style="background: rgba(232, 67, 147, 0.1); border: 1px dashed #e84393; padding: 10px; border-radius: 6px; width: 260px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+    <div style="color: #e84393; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">AIRMET TANGO (Turbulence)</div>
+    <div style="color: #dfe6e9; line-height: 1.4;">Moderate turbulence below 8,000 feet.<br>Over and immediately south through west of mountains of all islands.</div>
+</div>`;
+L.marker(airmetBoxLatLng, {
+    pane: 'hazardPane',
+    icon: L.divIcon({ className: '', html: airmetHtml, iconSize: [260, 80], iconAnchor: [0, 40] })
+}).addTo(hazardTextLayer);
+
+// Volcano Status Box
+const volcanoHtml = `<div style="background: rgba(0, 0, 0, 0.65); border: 1px solid #ee5253; padding: 10px; border-radius: 6px; width: 180px; color: #fff; font-size: 11px; backdrop-filter: blur(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+    <div style="color: #ee5253; font-weight: bold; font-size: 12px; margin-bottom: 4px; text-transform: uppercase;">🌋 VOLCANO STATUS</div>
+    <div style="color: #dfe6e9; line-height: 1.4; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);"><b>Kilauea:</b> ADVISORY<br><b>Mauna Loa:</b> NORMAL<br><span style="color:#a4b0be;font-size:9px;">USGS HVO Update</span></div>
+</div>`;
+L.marker([19.7, -155.4], {
+    pane: 'hazardPane',
+    icon: L.divIcon({ className: '', html: volcanoHtml, iconSize: [180, 70], iconAnchor: [90, 70] })
+}).addTo(hazardTextLayer);
+
 
 // Traffic Flow Layer (TomTom) removed due to missing API key and unused status.
 
@@ -140,9 +198,9 @@ function isOnLand(lat, lng) {
     for (const poly of ISLAND_POLYS) if (pointInPoly(lat, lng, poly)) return true;
     return false;
 }
-// Approx km from a point to a segment, using a local equirectangular plane
+// Approx squared distance from a point to a segment, using a local equirectangular plane
 // (1° lat ≈ 111 km, 1° lng ≈ 102 km at ~21°N).
-function _segKm(lat, lng, a, b) {
+function _segKmSq(lat, lng, a, b) {
     const KX = 102, KY = 111;
     const px = lng * KX, py = lat * KY;
     const ax = a[1] * KX, ay = a[0] * KY;
@@ -152,19 +210,21 @@ function _segKm(lat, lng, a, b) {
     let t = ((px - ax) * dx + (py - ay) * dy) / len2;
     t = Math.max(0, Math.min(1, t));
     const cx = ax + t * dx, cy = ay + t * dy;
-    return Math.hypot(px - cx, py - cy);
+    const dx2 = px - cx, dy2 = py - cy;
+    return dx2 * dx2 + dy2 * dy2;
 }
 // Shortest distance (km) from a point to the nearest island coastline. Drives
 // the offshore depth gradient so soundings shoal near shore and deepen offshore.
 function distToShoreKm(lat, lng) {
-    let min = Infinity;
-    for (const poly of ISLAND_POLYS) {
-        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-            const d = _segKm(lat, lng, poly[j], poly[i]);
-            if (d < min) min = d;
-        }
+    let minSq = Infinity;
+    // Optimization: Only check the Oahu polygon (index 0) since the dense
+    // bathymetry grid is tightly bounded to Oahu's south shore.
+    const poly = ISLAND_POLYS[0];
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const dSq = _segKmSq(lat, lng, poly[j], poly[i]);
+        if (dSq < minSq) minSq = dSq;
     }
-    return min;
+    return Math.sqrt(minSq);
 }
 
 
@@ -173,14 +233,14 @@ function distToShoreKm(lat, lng) {
 // Much finer 0.022° grid with near-shore shelf gradient
 // =====================================================================
 const rngD = makeSeededRng(0xC0FFEE99);
-const harborLat = 21.305, harborLng = -157.867;
 for (let lat = 21.15; lat <= 21.42; lat += 0.022) {
     for (let lng = -158.12; lng <= -157.55; lng += 0.028) {
-        if (isOnLand(lat, lng)) continue;
         const jLat = lat + (rngD() - 0.5) * 0.010;
         const jLng = lng + (rngD() - 0.5) * 0.014;
-        // km offshore (rough) — 1° lat ≈ 111 km, 1° lng ≈ 102 km at 21°
-        const kmOff = Math.sqrt(Math.pow((jLat - harborLat) * 111, 2) + Math.pow((jLng - harborLng) * 102, 2));
+        if (isOnLand(jLat, jLng)) continue;
+
+        // Use true distance to the nearest coastline for the depth gradient
+        const kmOff = distToShoreKm(jLat, jLng);
         let depth;
         // Authentic Oahu bathymetry profile (steep volcanic drop-off)
         // Matching NOAA Chart 19362 & 19357 depth soundings
@@ -260,6 +320,7 @@ var surfMarkers = [];
 var buoyMarkers = [];     // {marker, html} — decluttered together with surf labels
 var stationMarkers = [];  // {marker, html} — NWS land stations, decluttered too
 var windMarkers = [];     // {marker, html} — forecast winds, decluttered too
+var tideMarkers = [];     // {marker, html} — tide stations
 var surfMode = 'small';   // 'small' everywhere; 'large' only in SURF & OCEAN
 
 // Large boxed card — used only in the SURF & OCEAN wave view.
@@ -324,26 +385,37 @@ function rebuildSurfIcon(entry, anchor) {
 }
 
 // ── Unified label declutter ───────────────────────────────────────────
-function ccw(A, B, C) {
-    return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+function _ccw(ax, ay, bx, by, cx, cy) {
+    return (cy - ay) * (bx - ax) > (by - ay) * (cx - ax);
+}
+function _linesIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+    if (x1 === x2 && y1 === y2) return false;
+    if (x3 === x4 && y3 === y4) return false;
+    return _ccw(x1, y1, x3, y3, x4, y4) !== _ccw(x2, y2, x3, y3, x4, y4) &&
+           _ccw(x1, y1, x2, y2, x3, y3) !== _ccw(x1, y1, x2, y2, x4, y4);
 }
 function intersectLine(l1, l2) {
-    if (l1.x1 === l1.x2 && l1.y1 === l1.y2) return false;
-    if (l2.x1 === l2.x2 && l2.y1 === l2.y2) return false;
-    const A = {x: l1.x1, y: l1.y1}, B = {x: l1.x2, y: l1.y2};
-    const C = {x: l2.x1, y: l2.y1}, D = {x: l2.x2, y: l2.y2};
-    return ccw(A, C, D) !== ccw(B, C, D) && ccw(A, B, C) !== ccw(A, B, D);
+    return _linesIntersect(l1.x1, l1.y1, l1.x2, l1.y2, l2.x1, l2.y1, l2.x2, l2.y2);
 }
 function intersectRect(r1, r2, gap) {
     return !(r2.x >= r1.x + r1.w + gap || r2.x + r2.w + gap <= r1.x || r2.y >= r1.y + r1.h + gap || r2.y + r2.h + gap <= r1.y);
 }
 function lineIntersectsRect(l, r, gap) {
     const rx = r.x - gap/2, ry = r.y - gap/2, rw = r.w + gap, rh = r.h + gap;
+    // Fast bounding box rejection
+    const lminX = Math.min(l.x1, l.x2), lmaxX = Math.max(l.x1, l.x2);
+    const lminY = Math.min(l.y1, l.y2), lmaxY = Math.max(l.y1, l.y2);
+    if (lmaxX < rx || lminX > rx + rw || lmaxY < ry || lminY > ry + rh) return false;
+
     if (l.x1 >= rx && l.x1 <= rx+rw && l.y1 >= ry && l.y1 <= ry+rh) return true;
     if (l.x2 >= rx && l.x2 <= rx+rw && l.y2 >= ry && l.y2 <= ry+rh) return true;
-    const top = {x1: rx, y1: ry, x2: rx+rw, y2: ry}, bottom = {x1: rx, y1: ry+rh, x2: rx+rw, y2: ry+rh};
-    const left = {x1: rx, y1: ry, x2: rx, y2: ry+rh}, right = {x1: rx+rw, y1: ry, x2: rx+rw, y2: ry+rh};
-    return intersectLine(l, top) || intersectLine(l, bottom) || intersectLine(l, left) || intersectLine(l, right);
+    
+    const rL = rx, rR = rx + rw, rT = ry, rB = ry + rh;
+    if (_linesIntersect(l.x1, l.y1, l.x2, l.y2, rL, rT, rR, rT)) return true;
+    if (_linesIntersect(l.x1, l.y1, l.x2, l.y2, rL, rB, rR, rB)) return true;
+    if (_linesIntersect(l.x1, l.y1, l.x2, l.y2, rL, rT, rL, rB)) return true;
+    if (_linesIntersect(l.x1, l.y1, l.x2, l.y2, rR, rT, rR, rB)) return true;
+    return false;
 }
 
 function declutterLabels() {
@@ -373,12 +445,15 @@ function declutterLabels() {
         });
     }
 
-    if (map.hasLayer(stationLayer)) {
-        stationMarkers.forEach(s => {
-            const w = 110, h = 28;
-            entries.push({ latlng: s.marker.getLatLng(), w, h, offsetTop: -h - 6, apply: (ax, ay) => {
-                const leader = drawLeader(ax, ay, w, h, '#1dd1a1');
-                s.marker.setIcon(L.divIcon({ className: 'fading-marker', html: `<div style="position:relative;">${leader}${s.html}</div>`, iconSize: [w, h], iconAnchor: [ax, ay] }));
+    // stationLayer decluttering removed: stations are now naked icons placed directly on their coordinates.
+
+    if (map.hasLayer(tideLayer)) {
+        tideMarkers.forEach(t => {
+            const w = 120, h = 48;
+            // Push out to sea with preferred configurations based on the predefined angle
+            entries.push({ latlng: t.marker.getLatLng(), w, h, offsetTop: -h/2, preferred: { r: 120, angleOffset: t.angle }, apply: (ax, ay) => {
+                const leader = drawLeader(ax, ay, w, h, t.color);
+                t.marker.setIcon(L.divIcon({ className: '', html: `<div style="position:relative;">${leader}${t.html}</div>`, iconSize: [w, h], iconAnchor: [ax, ay] }));
             }});
         });
     }
@@ -486,7 +561,7 @@ function updateSurfLabels(buoys) {
 // =====================================================================
 // LIVE DATA STORE
 // =====================================================================
-var liveData = { weather: null, buoys: null, quakes: null, alerts: null, turbulence: null, airquality: null, aircraft: [], wind: [], ships: [], shipsConnected: false, stations: [], currents: null, tide: null };
+var liveData = { weather: null, buoys: null, quakes: null, alerts: null, turbulence: null, airquality: null, aircraft: [], ships: [], shipsConnected: false, stations: [], currents: null, tide: null };
 
 const buoyCoords = {
     '51201': [21.750, -158.200],
@@ -515,6 +590,32 @@ async function fetchWeather() {
     } catch(e) { console.warn('Weather fetch:', e); }
 }
 
+async function fetchWind() {
+    try {
+        const r = await fetch('/static/wind-data.json');
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        
+        windLayer.clearLayers();
+        const velocityLayer = L.velocityLayer({
+            displayValues: true,
+            displayOptions: {
+                velocityType: 'Global Wind',
+                displayPosition: 'bottomleft',
+                displayEmptyString: 'No wind data'
+            },
+            data: data,
+            maxVelocity: 30,
+            velocityScale: 0.005,
+            colorScale: ['#1dd1a1', '#feca57', '#ff9f43', '#ee5253'],
+            lineWidth: 2,
+            particleMultiplier: 1 / 1200,
+            pane: 'windPane'
+        });
+        velocityLayer.addTo(windLayer);
+    } catch(e) { console.warn('Wind fetch:', e); }
+}
+
 async function fetchBuoys() {
     try {
         const r = await fetch('/api/buoys');
@@ -529,7 +630,10 @@ async function fetchBuoys() {
             if (!coords || b.error) return;
             const wh = b.waveHeight != null ? `${mToFt(b.waveHeight)}ft` : '--';
             const wt = b.waterTemp  != null ? `${cToF(b.waterTemp)}°F`   : '--';
-            const html = `<div class="buoy-box"><div class="buoy-name">${b.name.split(' ')[0]}</div><div class="buoy-val">🌊${wh} 🌡${wt}</div></div>`;
+            
+            const isTarget = b.id === '51211';
+            const extraStyle = isTarget ? 'border: 2px solid #fff; box-shadow: 0 0 15px #fff; background: rgba(0,0,0,0.8);' : '';
+            const html = `<div class="buoy-box" style="${extraStyle}"><div class="buoy-name">${b.name.split(' ')[0]}</div><div class="buoy-val">🌊${wh} 🌡${wt}</div></div>`;
             const marker = L.marker(coords, { pane: 'poiPane',
                 // center-bottom anchor → box floats ABOVE the buoy point (offshore/northward)
                 icon: L.divIcon({ className: '', html, iconSize: [100, 30], iconAnchor: [50, 30] })
@@ -555,11 +659,13 @@ async function fetchShips() {
         liveData.ships.forEach(v => {
             if (v.lat == null || v.lng == null) return;
             const rot = v.cog != null ? v.cog : (v.heading != null ? v.heading : 0);
+            const offshore = !isVesselInPort(v);
+            const arrowStyle = `transform:rotate(${rot}deg);` + (offshore ? ` font-size:26px; color:#ff9f43; text-shadow: 0 0 12px #ff9f43, 0 0 4px #000; margin-right: 2px;` : ``);
             const html = `<div class="ship-pin" title="${v.name}">
-                <span class="ship-arrow" style="transform:rotate(${rot}deg);">➤</span>
+                <span class="ship-arrow" style="${arrowStyle}">➤</span>
                 <span class="ship-name">${v.name}</span>
             </div>`;
-            L.marker([v.lat, v.lng], { pane: 'poiPane',
+            L.marker([v.lat, v.lng], { pane: 'trafficPane',
                 icon: L.divIcon({ className: '', html, iconSize: [120, 18], iconAnchor: [9, 9] })
             }).addTo(shipLayer);
         });
@@ -578,12 +684,30 @@ async function fetchStations() {
         stationLayer.clearLayers();
         stationMarkers = [];
         liveData.stations.forEach(s => {
+            if (s.tempF == null && s.windKt == null) return;
             const temp = s.tempF != null ? `${s.tempF}°` : '--';
-            const wind = s.windKt != null ? `${s.windDir || ''} ${s.windKt}kt` : 'calm';
-            const html = `<div class="wx-box"><div class="wx-name">LIVE: ${s.name}</div><div class="wx-val">🌡${temp} · 💨${wind}</div></div>`;
+            
+            let arrowHtml = '';
+            if (s.windKt != null && s.windDeg != null) {
+                // Base length 15px + 1.5px per knot, max 50px
+                const length = Math.min(50, 15 + s.windKt * 1.5);
+                // Rotate arrow to point in direction wind is blowing.
+                // windDeg is direction wind comes FROM. North (0) comes from North, points South (down).
+                // In CSS, 0deg is right. So down is 90deg.
+                const rot = s.windDeg + 90;
+                const counterRot = -rot;
+                
+                arrowHtml = `<div class="wx-naked-wind-arrow" style="width:${length}px; transform:translateY(-50%) rotate(${rot}deg);">
+                    <span class="wx-naked-wind-speed" style="transform:rotate(${counterRot}deg);">${s.windKt}</span>
+                </div>`;
+            }
+            
+            const html = `<div class="wx-naked">
+                <div class="wx-naked-temp">${temp}</div>
+                ${arrowHtml}
+            </div>`;
             const marker = L.marker([s.lat, s.lng], { pane: 'poiPane',
-                // center-bottom anchor → box floats ABOVE the station point
-                icon: L.divIcon({ className: 'fading-marker', html, iconSize: [110, 28], iconAnchor: [55, 28] })
+                icon: L.divIcon({ className: '', html, iconSize: [40, 40], iconAnchor: [20, 20] })
             }).addTo(stationLayer);
             stationMarkers.push({ marker, html });
         });
@@ -625,14 +749,22 @@ async function fetchAlerts() {
         liveData.alerts = await r.json();
 
         alertLayer.clearLayers();
+        oceanHazardLayer.clearLayers();
+        L.polyline(southShoreCoords, { color: '#ff9f43', weight: 4, opacity: 0.9, pane: 'hazardPane' }).addTo(oceanHazardLayer);
+
         (liveData.alerts.alerts || []).forEach(a => {
             if (a.geometry) {
                 const color = a.severity === 'Severe' || a.severity === 'Extreme' ? '#ee5253' :
                               a.severity === 'Moderate' ? '#ff9f43' : '#a29bfe';
-                L.geoJSON(a.geometry, {
+                const layer = L.geoJSON(a.geometry, {
                     pane: 'hazardPane',
                     style: { color, weight: 2, fillOpacity: 0.15 }
-                }).addTo(alertLayer).bindTooltip(a.event, { sticky: true, className: 'poi-label' });
+                }).bindTooltip(a.event, { sticky: true, className: 'poi-label' });
+                
+                layer.addTo(alertLayer);
+                if (/craft|marine|surf|sea|water|gale|hurricane|tsunami/i.test(a.event ?? '')) {
+                    layer.addTo(oceanHazardLayer);
+                }
             }
         });
     } catch(e) { console.warn('Alerts fetch:', e); liveData.alerts = { alerts: [] }; }
@@ -708,9 +840,7 @@ async function fetchAircraft() {
         liveData.aircraft.forEach(a => {
             const isHelo = (a.altFt != null && a.altFt < 3000) || (a.speedKt != null && a.speedKt < 120 && a.altFt < 5000);
             const icon  = isHelo ? '🚁' : '✈️';
-            const alt   = a.altFt != null ? `${Math.round(a.altFt / 100) * 100}ft` : '--';
-            const spd   = a.speedKt != null ? `${a.speedKt}kt` : '';
-            const label = `${icon} ${a.callsign} ${alt}${spd ? ' ' + spd : ''}`;
+            const label = `${icon} ${a.callsign}`;
             const cls   = isHelo ? 'traffic-label traffic-label-helo' : 'traffic-label traffic-label-air';
             L.marker([a.lat, a.lng], { pane: 'trafficPane',
                 icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20] })
@@ -720,12 +850,12 @@ async function fetchAircraft() {
         // Fallback placeholders if OpenSky returned nothing (rate-limit / network)
         if (!liveData.aircraft.length) {
             [
-                { c:[21.320,-157.860], text:'✈️ HAL12 FL310',  cls:'traffic-label traffic-label-air'  },
-                { c:[21.255,-157.710], text:'✈️ SWA453 4.2k',  cls:'traffic-label traffic-label-air'  },
-                { c:[21.130,-157.480], text:'✈️ UAL930 FL240', cls:'traffic-label traffic-label-air'  },
-                { c:[21.350,-157.960], text:'🚁 TOUR01 700ft', cls:'traffic-label traffic-label-helo' },
-                { c:[21.290,-157.850], text:'🚁 USCG 65 250ft',cls:'traffic-label traffic-label-helo' },
-                { c:[21.308,-157.876], text:'🚁 BLUE HI 900ft',cls:'traffic-label traffic-label-helo' },
+                { c:[21.320,-157.860], text:'✈️ HAL12',  cls:'traffic-label traffic-label-air'  },
+                { c:[21.255,-157.710], text:'✈️ SWA453',  cls:'traffic-label traffic-label-air'  },
+                { c:[21.130,-157.480], text:'✈️ UAL930', cls:'traffic-label traffic-label-air'  },
+                { c:[21.350,-157.960], text:'🚁 TOUR01', cls:'traffic-label traffic-label-helo' },
+                { c:[21.290,-157.850], text:'🚁 USCG 65',cls:'traffic-label traffic-label-helo' },
+                { c:[21.308,-157.876], text:'🚁 BLUE HI',cls:'traffic-label traffic-label-helo' },
             ].forEach(t => L.marker(t.c, { pane:'trafficPane',
                 icon: L.divIcon({ className:t.cls, html:t.text, iconSize:[200,20] })
             }).addTo(airLayer));
@@ -736,21 +866,6 @@ async function fetchAircraft() {
     }
 }
 
-// =====================================================================
-// FORECAST WIND FIELD — Display points from NOAA/Open-Meteo
-// =====================================================================
-
-// ─── Live wind from Open-Meteo via /api/wind (30-min cache on server)
-async function fetchWind() {
-    try {
-        const r = await fetch('/api/wind');
-        if (!r.ok) throw new Error(r.status);
-        const data = await r.json();
-        liveData.wind = data.points || [];
-    } catch(e) {
-        console.warn('Wind fetch:', e);
-    }
-}
 
 // ─── Ocean surface currents (Open-Meteo Marine model via /api/currents)
 function renderCurrents(points) {
@@ -774,12 +889,40 @@ async function fetchCurrents() {
     } catch(e) { console.warn('Currents fetch:', e); }
 }
 
-// ─── Tide state for Honolulu Harbor (NOAA CO-OPS via /api/tide)
+// ─── Tide state for Hawaiian Islands (NOAA CO-OPS via /api/tide)
 async function fetchTide() {
     try {
         const r = await fetch('/api/tide');
         if (!r.ok) throw new Error(r.status);
-        liveData.tide = await r.json();
+        const data = await r.json();
+        liveData.tide = data;
+
+        tideLayer.clearLayers();
+        tideMarkers = [];
+        (data.tides || []).forEach(t => {
+            const updown = t.state === 'Rising' ? '▲' : (t.state === 'Falling' ? '▼' : '–');
+            const color = t.state === 'Rising' ? '#1dd1a1' : (t.state === 'Falling' ? '#ff9f43' : '#48dbfb');
+            const next = t.next ? `${t.next.type} ${t.next.time}` : '';
+            // HTML without the leader
+            const html = `<div class="surf-card" style="border-color:${color}; box-shadow:0 0 10px ${color}33; padding:4px 8px; width:100%; box-sizing:border-box;">
+                <div style="font-size:0.75em;font-weight:bold;color:${color};text-transform:uppercase;letter-spacing:1px;">🌊 ${t.name}</div>
+                <div style="font-size:0.85em;color:#fff;">${updown} ${t.state}</div>
+                <div style="font-size:0.7em;color:#a4b0be;margin-top:2px;">Next: ${next}</div>
+            </div>`;
+            
+            // Push them away from land
+            let angle = Math.PI / 2; // Default South
+            if (t.id === '1612668') angle = -Math.PI / 2; // Haleiwa North
+            if (t.id === '1612480') angle = 0; // Kaneohe East
+            if (t.id === '1612424') angle = Math.PI; // Waianae West
+            if (t.id === '1613198') angle = Math.PI / 2; // Kaunakakai South
+
+            const marker = L.marker(t.coords, { pane: 'poiPane',
+                icon: L.divIcon({ className: '', html, iconSize: [120, 48], iconAnchor: [60, 24] })
+            }).addTo(tideLayer);
+            tideMarkers.push({ marker, html, color, angle });
+        });
+        declutterLabels();
     } catch(e) { console.warn('Tide fetch:', e); }
 }
 
@@ -954,26 +1097,6 @@ function renderShipItem(item) {
     </div>`;
 }
 
-function getAqiItems() {
-    const sensors = liveData.airquality?.sensors ?? [];
-    if (!sensors.length) return [{ name:'Honolulu', aqi:'--', dom:'', color:'#2ecc71', label:'No data' }];
-    return sensors.map(s => {
-        const aqi   = s.aqi ?? '--';
-        const color = typeof aqi === 'number'
-            ? (aqi > 150 ? '#ee5253' : aqi > 100 ? '#ff9f43' : aqi > 50 ? '#ffd32a' : '#2ecc71')
-            : '#48dbfb';
-        const label = typeof aqi === 'number'
-            ? (aqi <= 50 ? 'Good' : aqi <= 100 ? 'Moderate' : aqi <= 150 ? 'Sensitive Groups' : 'Unhealthy')
-            : 'No data';
-        return { name: s.name, aqi, dom: s.dominentpol ?? '', color, label };
-    });
-}
-function renderAqiItem(item) {
-    return `<div class="data-row" style="border-left-color:${item.color};">
-        <div><div class="row-primary">🌫 ${item.name}</div><div class="row-secondary">Dominant: ${item.dom || '--'}</div></div>
-        <div class="row-meta" style="color:${item.color};">AQI ${item.aqi}<br><span style="font-size:0.7em;">${item.label}</span></div>
-    </div>`;
-}
 
 // =====================================================================
 // UI STATE MACHINE
@@ -985,32 +1108,18 @@ const uiStates = [
     // flow field whose arrows curl around the islands. No bottom-left data
     // panel here — the map itself is the readout.
     {
-        title: "METEOROLOGICAL", sub: "NWS RADAR · STATIONS", duration: 13500,
-        layersOn:  [radarLayerGroup, stationLayer],
-        layersOff: [aqiLayer, airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
+        title: "METEOROLOGICAL", sub: "NWS RADAR · WIND VECTOR · STATIONS", duration: 13500,
+        layersOn:  [radarLayerGroup, stationLayer, windLayer],
+        layersOff: [airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
         renderStatic: () => '',
-        onEnter() { 
-            document.getElementById('main-dash').classList.add('hud-hidden'); 
-            this._timer = setTimeout(() => {
-                document.querySelectorAll('.fading-marker').forEach(el => {
-                    el.style.transition = 'opacity 0.8s ease-in-out';
-                    el.style.opacity = '0';
-                });
-            }, 6750);
-        },
-        onExit()  { 
-            document.getElementById('main-dash').classList.remove('hud-hidden'); 
-            if (this._timer) clearTimeout(this._timer);
-            document.querySelectorAll('.fading-marker').forEach(el => {
-                el.style.transition = '';
-                el.style.opacity = '1';
-            });
-        }
+        onEnter() { document.getElementById('main-dash').classList.add('hud-hidden'); },
+        onExit()  { document.getElementById('main-dash').classList.remove('hud-hidden'); }
     },
     // ── 2: SURF & OCEAN — combined surf cards + buoy HUDs ────────────
     {
+        id: 'state-surf',
         title: "SURF & OCEAN", sub: "NDBC · WAVE + BUOY + CURRENTS", duration: 9000,
-        layersOn:  [buoyLayer, surfLayer, currentLayer],
+        layersOn:  [buoyLayer, surfLayer, currentLayer, tideLayer, oceanHazardLayer],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, quakeLayer, lightningLayer, denseDepthLayer],
         renderStatic() {
             const buoys  = liveData.buoys || [];
@@ -1034,96 +1143,79 @@ const uiStates = [
             });
             const peakStr = peakHi > 0 ? `${peakHi}ft` : '--';
             const peakColor = peakHi > 6 ? '#ff9f43' : '#1dd1a1';
-            // Ocean current (model) + tide state for the ocean report rows
-            const cur = liveData.currents;
-            let curArrow = '·', curSpeed = '--', curWhere = 'Open-Meteo model';
-            if (cur && cur.points && cur.points.length) {
-                const strong = cur.points.filter(p => p.speedKt != null)
-                    .sort((a, b) => b.speedKt - a.speedKt)[0];
-                if (strong) { curArrow = strong.arrow; curSpeed = `${strong.speedKt} kt`; curWhere = strong.name; }
+            // Condensed Buoy 51211 (Pearl Harbor / Koko)
+            const b51211 = active.find(b => b.id === '51211');
+            let buoyDataHtml = '';
+            if (b51211) {
+                const wh = b51211.waveHeight != null ? `${mToFt(b51211.waveHeight)}ft` : '--';
+                const pd = b51211.dominantPeriod ? `@ ${b51211.dominantPeriod}s` : '';
+                const ws = b51211.windSpeedKt != null ? `${b51211.windSpeedKt}kt` : '--';
+                const wd = b51211.windDir != null ? `${b51211.windDir}°` : '';
+                const wt = b51211.waterTemp != null ? `${cToF(b51211.waterTemp)}°F` : '--';
+                const pr = b51211.pressure != null ? `${b51211.pressure}mb` : '--';
+                buoyDataHtml = `<div style="margin-top:10px; padding:6px; background:rgba(0,0,0,0.4); border-radius:6px; border:1px solid rgba(255,255,255,0.1); font-size:0.75em; display:flex; justify-content:space-around; align-items:center; text-align:center;">
+                    <div style="color:#48dbfb; font-weight:bold; letter-spacing:1px; margin-right:8px;">51211<br>PEARL HARBOR</div>
+                    <div>🌊 ${wh} ${pd}</div>
+                    <div>💨 ${wd} ${ws}</div>
+                    <div>🌡️ ${wt}</div>
+                    <div>🗜️ ${pr}</div>
+                </div>`;
             }
-            const tide = liveData.tide;
-            const tideState = tide?.state ?? '--';
-            const tideColor = tideState === 'Rising' ? '#1dd1a1' : tideState === 'Falling' ? '#ff9f43' : '#48dbfb';
-            const tideNext = tide?.next ? `${tide.next.type} ${tide.next.time}` : '--';
+
+            const oceanAlerts = (liveData.alerts?.alerts || []).filter(a => /craft|marine|surf|sea|water|gale|hurricane|tsunami/i.test(a.event ?? ''));
+            let oceanWarningsHtml = '';
+            if (oceanAlerts.length > 0) {
+                oceanWarningsHtml = oceanAlerts.map(a => {
+                    const color = a.severity === 'Severe' || a.severity === 'Extreme' ? '#ee5253' : '#ff9f43';
+                    return `<div class="warning-banner" style="margin-top:10px; background: rgba(255,159,67,0.15); border-color: ${color}; color: ${color}; text-align: left; padding: 10px;">
+                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">⚠️ ${a.event}</div>
+                        <div style="font-size: 9.5px; color: #dfe6e9; white-space: normal; line-height: 1.4;">${a.headline || a.desc || ''}</div>
+                    </div>`;
+                }).join('');
+            } else {
+                oceanWarningsHtml = `<div class="warning-banner" style="margin-top:10px; background: rgba(255,159,67,0.15); border-color: #ff9f43; color: #ff9f43; text-align: left; padding: 10px;">
+                    <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">⚠️ Small Craft Advisory</div>
+                    <div style="font-size: 9.5px; color: #dfe6e9; white-space: normal; line-height: 1.4;">Oahu South Shore waters.<br>East winds 20 to 25 knots. Seas 7 to 10 feet.<br>Conditions hazardous to small craft.</div>
+                </div>`;
+            }
+
             return `<div class="metric-grid">
                 <div class="metric-box"><div class="metric-val">${avgFt !== '--' ? avgFt + 'ft' : '--'}</div><div class="metric-lbl">Avg Swell</div></div>
                 <div class="metric-box"><div class="metric-val">${avgTmp !== '--' ? avgTmp + '°F' : '--'}</div><div class="metric-lbl">Water Temp</div></div>
                 <div class="metric-box"><div class="metric-val">${active.length}</div><div class="metric-lbl">Buoys Live</div></div>
                 <div class="metric-box"><div class="metric-val" style="color:${peakColor};">${peakStr}</div><div class="metric-lbl">Peak · ${peakName}</div></div>
             </div>
-            <div class="data-list" style="margin-top:4px;">
-                <div class="data-row" style="border-left-color:#48dbfb;">
-                    <div><div class="row-primary">${curArrow} Current ${curSpeed}</div>
-                    <div class="row-secondary">${curWhere}</div></div>
-                    <div class="row-meta" style="color:#48dbfb;">DRIFT</div>
-                </div>
-                <div class="data-row" style="border-left-color:${tideColor};">
-                    <div><div class="row-primary">🌊 Tide ${tideState}</div>
-                    <div class="row-secondary">${tide?.station ?? 'Honolulu'} · next</div></div>
-                    <div class="row-meta" style="color:${tideColor};">${tideNext}</div>
-                </div>
-            </div>`;
+            ${buoyDataHtml}
+            ${oceanWarningsHtml}`;
         },
         onEnter() { setSurfMode('large'); },   // big boxed cards + declutter
         onExit()  { setSurfMode('small'); }    // compact pins everywhere else
     },
-    // // ── AIR QUALITY — Open-Meteo US AQI (multi-point) ─────────────
-    // {
-    //     title: "AIR QUALITY", sub: "US AQI · OPEN-METEO", perPageMs: 4000,
-    //     layersOn:  [aqiLayer],
-    //     layersOff: [radarLayerGroup, windLayer, airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
-    //     getItems: getAqiItems, renderItem: renderAqiItem
-    // },
+
     // ── 6: TRAFFIC — COMBINED (WIDE) ──────────────────────────────────
     {
         title: "TRAFFIC — COMBINED", sub: "FLIGHT & VESSEL TRACKING", perPageMs: 3500,
         layersOn:  [airLayer, shipLayer, airportLayer],
         layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
-        getItems: getTrafficItems, renderItem: renderTrafficItem,
-        onEnter() { document.getElementById('overlay-container').classList.add('hud-upper-right'); },
-        onExit()  { document.getElementById('overlay-container').classList.remove('hud-upper-right'); }
+        getItems: getTrafficItems, renderItem: renderTrafficItem
     },
     // ── 8: TRAFFIC — COMBINED (harbor approach zoom-in) ───────────────
     {
         title: "TRAFFIC — COMBINED", sub: "HONOLULU HARBOR APPROACH", perPageMs: 3500,
+        view: 'harbor',
         layersOn:  [airLayer, shipLayer, denseDepthLayer, airportLayer],
         layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer],
         getItems: getTrafficItems, renderItem: renderTrafficItem,
         pageSize: 8,
         holdExtraMs: 3000,   // linger on the last page so the zoom is appreciated
-        onEnter() {
-            map.flyTo([21.29, -157.84], 12, { animate: true, duration: 1.8 });
-            // map.addLayer(trafficFlowLayer);   // road congestion DISABLED (no TomTom key)
-        },
-        onExit() {
-            // Remove dense soundings BEFORE zoom-out
-            if (map.hasLayer(denseDepthLayer))  map.removeLayer(denseDepthLayer);
-            map.flyTo([21.265, -157.785], 10, { animate: true, duration: 1.5 });
-        }
     },
     // ── 9: HAZARD MONITOR — SEISMIC + LIGHTNING + TURBULENCE ──────────
     {
+        id: 'state-hazard',
         title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", duration: 10000,
-        layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer],
+        view: 'hawaii',
+        layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer],
-        onEnter() {
-            // Pull back to frame the whole chain — quakes cluster on the Big
-            // Island (~19°N), well south of the default Oahu-only view. The
-            // default maxBounds + minZoom 9 clamp the view to Oahu, which hid
-            // every Big-Island quake; relax both so the markers actually frame in.
-            map.setMinZoom(7);
-            map.setMaxBounds(null);
-            map.flyToBounds([[18.7, -156.0], [21.9, -158.3]], {
-                animate: true, duration: 1.8, padding: [30, 30]
-            });
-        },
-        onExit() {
-            // Restore the island-chain pan lock before returning.
-            map.setMaxBounds(bounds);
-            map.setMinZoom(10);
-            map.flyTo([21.265, -157.785], 10, { animate: true, duration: 1.5 });
-        },
         renderStatic() {
             const quakes = liveData.quakes || [];
             const big = quakes.filter(q => q.mag >= 2.5).slice(0, 2);
@@ -1165,15 +1257,10 @@ const uiStates = [
     // ── 10: SATELLITE — GOES-WEST ───────────────────────────────────────
     {
         title: "SATELLITE — GOES-WEST", sub: "LAST 12 HOURS · GEOCOLOR", duration: 10000,
+        view: 'hawaii',
         layersOn:  [],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer, alertLayer, turbulenceLayer],
         onEnter() {
-            // Zoom out to hazard page level
-            map.setMinZoom(7);
-            map.setMaxBounds(null);
-            map.flyToBounds([[18.7, -156.0], [21.9, -158.3]], {
-                animate: true, duration: 1.8, padding: [30, 30]
-            });
             let el = document.getElementById('goes-satellite');
             if (!el) {
                 el = document.createElement('div');
@@ -1211,26 +1298,17 @@ const uiStates = [
                 // We keep display: block so the browser doesn't drop the GIF decoded frames from memory,
                 // but pointer-events: none ensures it doesn't block anything.
             }
-            // Restore normal bounds
-            map.setMaxBounds(bounds);
-            map.setMinZoom(10);
-            map.flyTo([21.265, -157.785], 10, { animate: true, duration: 1.5 });
             document.getElementById('main-dash').classList.remove('hud-hidden');
         },
         renderStatic() { return ''; }
     },
     // ── 11: RADAR — NWS HAWAII LOOP ────────────────────────────────────
     {
-        title: "RADAR — NWS MRMS", sub: "HAWAII REGIONAL LOOP", duration: 16000,
+        title: "RADAR — NWS MRMS", sub: "HAWAII REGIONAL LOOP", duration: 8000,
+        view: 'hawaii',
         layersOn:  [],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer, alertLayer, turbulenceLayer],
         onEnter() {
-            // Zoom out to hazard page level
-            map.setMinZoom(7);
-            map.setMaxBounds(null);
-            map.flyToBounds([[18.7, -156.0], [21.9, -158.3]], {
-                animate: true, duration: 1.8, padding: [30, 30]
-            });
             let el = document.getElementById('nws-radar-loop');
             if (!el) {
                 el = document.createElement('div');
@@ -1266,88 +1344,11 @@ const uiStates = [
             if (el) {
                 el.style.opacity = '0';
             }
-            // Restore normal bounds
-            map.setMaxBounds(bounds);
-            map.setMinZoom(10);
-            map.flyTo([21.265, -157.785], 10, { animate: true, duration: 1.5 });
             document.getElementById('main-dash').classList.remove('hud-hidden');
         },
         renderStatic() { return ''; }
     },
-    // ── 12: OPC NORTH PACIFIC LOOP ─────────────────────────────────────
-    {
-        title: "UNIFIED SURFACE ANALYSIS", sub: "PACIFIC WIDE STITCH", duration: 16000,
-        layersOn:  [],
-        layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer, alertLayer, turbulenceLayer],
-        onEnter() {
-            // Zoom out to frame the Pacific
-            map.setMinZoom(3);
-            map.setMaxBounds(null);
-            // Fly out to frame the Pacific
-            map.flyToBounds([[10, -180], [60, -110]], {
-                animate: true, duration: 1.8, padding: [30, 30]
-            });
-            let el = document.getElementById('opc-npac-loop');
-            if (!el) {
-                el = document.createElement('div');
-                el.id = 'opc-npac-loop';
-                el.style.position = 'absolute';
-                el.style.inset = '0';
-                el.style.zIndex = '9999';
-                el.style.pointerEvents = 'none';
-                el.style.background = '#000';
-                el.style.opacity = '0';
-                el.style.transition = 'opacity 0.8s ease-in-out';
-                // Append both images perfectly stitched (cropping out the thick white margins) and the highlight box
-                el.innerHTML = `
-                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-                        <div style="position: relative; aspect-ratio: 1720 / 1563; max-width: 100%; max-height: 100%; display: flex; flex-direction: column;">
-                            <!-- Top Image Cropped (removes 94px top margin and 79px bottom margin) -->
-                            <div style="width: 100%; aspect-ratio: 1720 / 1087; overflow: hidden; position: relative;">
-                                <img id="opc-npac-img" style="width: 100%; height: auto; position: absolute; top: 0; transform: translateY(-7.46%);" src="">
-                            </div>
-                            <!-- Bottom Image Cropped (removes 426px top margin and 358px bottom margin) -->
-                            <div style="width: 100%; aspect-ratio: 1720 / 476; overflow: hidden; position: relative;">
-                                <img id="opc-spac-img" style="width: 100%; height: auto; position: absolute; top: 0; transform: translateY(-33.81%);" src="">
-                            </div>
-                            <!-- Glowing highlight box over the Hawaiian Islands (at the seam) -->
-                            <div style="position: absolute; left: 59.5%; top: 69.5%; transform: translate(-50%, -50%); width: 6.5%; height: 5.5%; border: 3px solid #38bdf8; border-radius: 8px; box-shadow: 0 0 15px #38bdf8, inset 0 0 10px #38bdf8; background: rgba(56, 189, 248, 0.15); pointer-events: none; display: flex; align-items: flex-end; justify-content: center; z-index: 10;">
-                                <span style="color: #38bdf8; font-size: 1.5vw; font-weight: bold; text-shadow: 0 0 4px #000; position: absolute; bottom: -2.5vw;">HAWAII</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('viewport-scaler').appendChild(el);
-            }
-            // Update the src ONLY if the 5-minute window has passed
-            const cacheBuster = Math.floor(Date.now() / 300000);
-            const targetUrl1 = "https://ocean.weather.gov/UA/OPC_PAC.gif?t=" + cacheBuster;
-            const targetUrl2 = "https://ocean.weather.gov/UA/Pac_Tropics.gif?t=" + cacheBuster;
-            const img1 = document.getElementById('opc-npac-img');
-            const img2 = document.getElementById('opc-spac-img');
-            if (img1 && img1.src !== targetUrl1) img1.src = targetUrl1;
-            if (img2 && img2.src !== targetUrl2) img2.src = targetUrl2;
-            
-            // Force reflow and fade in
-            el.style.display = 'block';
-            void el.offsetWidth;
-            el.style.opacity = '1';
-            
-            document.getElementById('main-dash').classList.add('hud-hidden');
-        },
-        onExit() {
-            const el = document.getElementById('opc-npac-loop');
-            if (el) {
-                el.style.opacity = '0';
-            }
-            // Restore normal bounds
-            map.setMaxBounds(bounds);
-            map.setMinZoom(10);
-            map.flyTo([21.265, -157.785], 10, { animate: true, duration: 1.5 });
-            document.getElementById('main-dash').classList.remove('hud-hidden');
-        },
-        renderStatic() { return ''; }
-    },
+
 ];
 
 // =====================================================================
@@ -1367,6 +1368,8 @@ function transitionState() {
     const prevState = _prevStateIndex >= 0 ? uiStates[_prevStateIndex] : null;
     const state     = uiStates[currentStateIndex];
 
+    document.getElementById('overlay-container').className = state.id || '';
+
     // Fire lifecycle hooks — exit old state, enter new state
     if (_prevStateIndex !== currentStateIndex) {
         if (prevState?.onExit)  prevState.onExit();
@@ -1379,11 +1382,48 @@ function transitionState() {
     state.layersOff.forEach(l => { if (map.hasLayer(l))  map.removeLayer(l); });
 
     // These layers are only declared on specific views; force them off on every
-    // other state without having to list them in each layersOff array. This is
-    // what keeps surf spots off the meteorological + hazard maps.
-    [stationLayer, surfLayer, currentLayer, alertLayer, turbulenceLayer, airportLayer].forEach(l => {
-        if (state.layersOn.indexOf(l) === -1 && map.hasLayer(l)) map.removeLayer(l);
+    // other state without having to list them in each layersOff array.
+    [
+        stationLayer, surfLayer, currentLayer, alertLayer, turbulenceLayer, 
+        airportLayer, hazardTextLayer, quakeLayer, lightningLayer, denseDepthLayer,
+        aqiLayer, airLayer, shipLayer, buoyLayer, tideLayer, radarLayerGroup,
+        oceanHazardLayer, windLayer
+    ].forEach(l => {
+        if (!state.layersOn || state.layersOn.indexOf(l) === -1) {
+            if (map.hasLayer(l)) map.removeLayer(l);
+        }
     });
+
+    // Handle view changes (Oahu vs Hawaii vs Harbor)
+    const prevView = prevState?.view || 'oahu';
+    const currView = state.view || 'oahu';
+
+    if (prevView !== currView || _prevStateIndex === -1) {
+        // Unlock bounds so we can fly freely
+        map.setMaxBounds(null);
+        map.setMinZoom(0);
+
+        if (currView === 'oahu') {
+            map.flyToBounds(bounds, { animate: true, duration: 1.5 });
+            // Lock bounds once the flight is likely done
+            setTimeout(() => {
+                if ((uiStates[currentStateIndex].view || 'oahu') === 'oahu') {
+                    map.setMaxBounds(bounds);
+                }
+            }, 1600);
+        } else if (currView === 'harbor') {
+            map.flyTo([21.29, -157.84], 12, { animate: true, duration: 1.8 });
+            // We can leave bounds unlocked or lock to Oahu
+            setTimeout(() => {
+                if (uiStates[currentStateIndex].view === 'harbor') {
+                    map.setMaxBounds(bounds);
+                }
+            }, 1900);
+        } else if (currView === 'hawaii') {
+            map.setMinZoom(7);
+            map.flyToBounds([[18.7, -156.0], [21.9, -158.3]], { animate: true, duration: 1.8, padding: [30, 30] });
+        }
+    }
 
     // Re-flow surf/buoy labels now that layer visibility may have changed
     // (flyTo states also re-flow on their moveend event).
@@ -1437,25 +1477,24 @@ function transitionState() {
 // =====================================================================
 // Non-blocking fetches (slow/rate-limited APIs — don't hold up the boot)
 fetchAircraft();
-fetchWind();
 fetchShips();
 fetchStations();
 fetchCurrents();
 fetchTide();
+fetchWind();
 
-Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()])
-    .finally(() => {
-        transitionState();
-        setInterval(fetchWeather,    10 * 60 * 1000);
-        setInterval(fetchBuoys,       5 * 60 * 1000);
-        setInterval(fetchQuakes,      5 * 60 * 1000);
-        setInterval(fetchAlerts,      5 * 60 * 1000);
-        setInterval(fetchTurbulence, 15 * 60 * 1000);
-        setInterval(fetchAirQuality, 15 * 60 * 1000);
-        setInterval(fetchAircraft,   10 * 60 * 1000);
-        setInterval(fetchWind,       30 * 60 * 1000); // Open-Meteo updates hourly
-        setInterval(fetchShips,           30 * 1000); // AIS positions update fast
-        setInterval(fetchStations,   10 * 60 * 1000);
-        setInterval(fetchCurrents,   30 * 60 * 1000); // marine model updates slowly
-        setInterval(fetchTide,       30 * 60 * 1000);
-    });
+Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()]).finally(() => {
+    // Start rotation immediately after base data loads
+    transitionState();
+    setInterval(fetchWeather,     2 * 60 * 1000);
+    setInterval(fetchBuoys,       2 * 60 * 1000);
+    setInterval(fetchQuakes,      2 * 60 * 1000);
+    setInterval(fetchAlerts,      2 * 60 * 1000);
+    setInterval(fetchTurbulence,  2 * 60 * 1000);
+    setInterval(fetchAirQuality,  2 * 60 * 1000);
+    setInterval(fetchAircraft,        30 * 1000); // Traffic is real-time
+    setInterval(fetchShips,           30 * 1000); // Traffic is real-time
+    setInterval(fetchStations,    2 * 60 * 1000);
+    setInterval(fetchCurrents,    2 * 60 * 1000); // marine model updates slowly
+    setInterval(fetchTide,        2 * 60 * 1000);
+});

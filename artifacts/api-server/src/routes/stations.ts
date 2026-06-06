@@ -13,6 +13,7 @@ const STATIONS: Array<{ id: string; name: string; lat: number; lng: number }> = 
   { id: "PHMK", name: "Molokai (MKK)", lat: 21.1529, lng: -157.0964 },
   { id: "PHJH", name: "West Maui (JHM)", lat: 20.9629, lng: -156.6739 },
   { id: "PHNY", name: "Lanai (LNY)", lat: 20.7856, lng: -156.9514 },
+  { id: "G7197", name: "Haleiwa (North Shore)", lat: 21.5888, lng: -158.1145 },
 ];
 
 let cache: { data: unknown; expiresAt: number } | null = null;
@@ -65,6 +66,7 @@ router.get("/stations", async (req, res) => {
             tempF: tempC != null ? Math.round((tempC * 9) / 5 + 32) : null,
             windKt: windKmh != null ? Math.round(windKmh * 0.539957) : null,
             windDir: degToCompass(p.windDirection?.value ?? null),
+            windDeg: p.windDirection?.value ?? null,
             conditions: p.textDescription ?? null,
             obsTime: p.timestamp ?? null,
           };

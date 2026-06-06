@@ -2,11 +2,14 @@ import { Router } from "express";
 
 const router = Router();
 
-// Tide state for Honolulu Harbor (NOAA CO-OPS station 1612340, keyless).
-// Pulls the high/low predictions across a window spanning the current moment
-// and derives whether the tide is rising or falling plus the next/previous
-// hi-lo events. Cached because predictions change slowly.
-const STATION = "1612340";
+// Tide stations on Oahu and Molokai
+const STATIONS = [
+  { id: "1612340", name: "Honolulu", coords: [21.306, -157.867] },
+  { id: "1612480", name: "Moku O Loe", coords: [21.433, -157.790] },
+  { id: "1612424", name: "Waianae", coords: [21.436, -158.196] },
+  { id: "1612668", name: "Haleiwa", coords: [21.595, -158.103] },
+  { id: "1613198", name: "Kaunakakai", coords: [21.083, -157.030] }
+];
 
 type Prediction = { t: string; v: string; type: "H" | "L" };
 
@@ -48,10 +51,6 @@ router.get("/tide", async (req, res) => {
       return;
     }
 
-    // Window starting yesterday (Honolulu calendar date) so we always have a
-    // "previous" event. Using UTC here can land on the wrong day near HST
-    // midnight; anchor to the Hawaii date, then step back one day. (HST has no
-    // DST, so plain 24h UTC math on a date-only anchor is safe.)
     const df = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Pacific/Honolulu",
       year: "numeric",
@@ -66,32 +65,47 @@ router.get("/tide", async (req, res) => {
       (begin.getUTCMonth() + 1).toString().padStart(2, "0") +
       begin.getUTCDate().toString().padStart(2, "0");
 
-    const url =
-      `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${beginStr}&range=72` +
-      `&station=${STATION}&product=predictions&datum=MLLW&interval=hilo&units=english` +
-      `&time_zone=lst_ldt&format=json`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error(`NOAA CO-OPS ${r.status}`);
-    const j = (await r.json()) as { predictions?: Prediction[] };
-    const preds = j.predictions ?? [];
-    if (!preds.length) throw new Error("No tide predictions returned");
-
     const now = hawaiiNowNaive();
-    const sorted = preds.slice().sort((a, b) => parseNaive(a.t) - parseNaive(b.t));
-    const next = sorted.find((p) => parseNaive(p.t) > now) ?? null;
-    const prevList = sorted.filter((p) => parseNaive(p.t) <= now);
-    const prev = prevList.length ? prevList[prevList.length - 1] : null;
 
-    const state = next ? (next.type === "H" ? "Rising" : "Falling") : "—";
+    const fetchTideData = async (station: typeof STATIONS[0]) => {
+      try {
+        const url =
+          `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${beginStr}&range=72` +
+          `&station=${station.id}&product=predictions&datum=MLLW&interval=hilo&units=english` +
+          `&time_zone=lst_ldt&format=json`;
+        const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) throw new Error(`NOAA CO-OPS ${r.status}`);
+        const j = (await r.json()) as { predictions?: Prediction[] };
+        const preds = j.predictions ?? [];
+        if (!preds.length) return null;
 
-    const shape = (p: Prediction | null) =>
-      p ? { type: p.type === "H" ? "High" : "Low", time: fmtTime(p.t), heightFt: Math.round(parseFloat(p.v) * 100) / 100 } : null;
+        const sorted = preds.slice().sort((a, b) => parseNaive(a.t) - parseNaive(b.t));
+        const next = sorted.find((p) => parseNaive(p.t) > now) ?? null;
+        const prevList = sorted.filter((p) => parseNaive(p.t) <= now);
+        const prev = prevList.length ? prevList[prevList.length - 1] : null;
+
+        const state = next ? (next.type === "H" ? "Rising" : "Falling") : "—";
+        const shape = (p: Prediction | null) =>
+          p ? { type: p.type === "H" ? "High" : "Low", time: fmtTime(p.t), heightFt: Math.round(parseFloat(p.v) * 100) / 100 } : null;
+
+        return {
+          id: station.id,
+          name: station.name,
+          coords: station.coords,
+          state,
+          next: shape(next),
+          prev: shape(prev),
+        };
+      } catch (err) {
+        return null;
+      }
+    };
+
+    const results = await Promise.all(STATIONS.map(fetchTideData));
+    const validResults = results.filter(r => r !== null);
 
     const data = {
-      station: "Honolulu Harbor",
-      state,
-      next: shape(next),
-      prev: shape(prev),
+      tides: validResults,
       source: "NOAA CO-OPS",
       fetchedAt: Date.now(),
     };

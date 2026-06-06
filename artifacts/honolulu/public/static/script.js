@@ -1729,7 +1729,7 @@ function transitionState() {
         airportLayer, hazardTextLayer, quakeLayer, lightningLayer, denseDepthLayer,
         superDenseDepthLayer,
         aqiLayer, airLayer, shipLayer, buoyLayer, tideLayer, radarLayerGroup,
-        oceanHazardLayer, windLayer, waveLayer
+        windLayer, waveLayer
     ].forEach(l => {
         if (!state.layersOn || state.layersOn.indexOf(l) === -1) {
             if (map.hasLayer(l)) map.removeLayer(l);

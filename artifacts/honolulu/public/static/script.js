@@ -75,6 +75,8 @@ var hazardTextLayer = L.layerGroup();
 // Dense bathymetry — only added to map during Traffic Combined zoom-in
 var denseDepthLayer = L.layerGroup();
 var superDenseDepthLayer = L.layerGroup();
+var sparseDepthLayer = L.layerGroup();
+var deepOceanAirLayer = L.layerGroup();
 
 // --- HAZARD TEXT LAYER SET UP LATER ---
 
@@ -312,6 +314,39 @@ for (let lat = 21.22; lat <= 21.30; lat += 0.005) {
             pane: 'depthPane',
             icon: L.divIcon({ className: 'depth-label depth-label-dense', html: html, iconSize: [24, 14], iconAnchor: [12, 7] })
         }).addTo(superDenseDepthLayer);
+    }
+}
+
+// =====================================================================
+// SPARSE BATHYMETRY - hazard page
+// =====================================================================
+const rngSparse = makeSeededRng(0xDEADBEEF);
+
+for (let lat = 20.8; lat <= 21.9; lat += 0.08) {
+    for (let lng = -158.6; lng <= -156.8; lng += 0.08) {
+        const jLat = lat + (rngSparse() - 0.5) * 0.03;
+        const jLng = lng + (rngSparse() - 0.5) * 0.03;
+        if (isOnLand(jLat, jLng)) continue;
+
+        const kmOff = distToShoreKm(jLat, jLng);
+        let depth;
+        if (kmOff < 1)         depth = 10 + kmOff * 80;
+        else if (kmOff < 3)    depth = 90 + (kmOff - 1) * 350;
+        else if (kmOff < 8)    depth = 790 + (kmOff - 3) * 350;
+        else if (kmOff < 20)   depth = 2540 + (kmOff - 8) * 250;
+        else                   depth = 5540 + (kmOff - 20) * 150;
+
+        depth += (rngSparse() - 0.5) * (depth * 0.20); 
+        depth = Math.floor(Math.max(6, depth));
+        
+        const fm = Math.floor(depth / 6);
+        const ft = Math.floor(depth % 6);
+        const html = fm < 30 && ft > 0 ? `${fm}<sub>${ft}</sub>` : `${fm}`;
+
+        L.marker([jLat, jLng], {
+            pane: 'depthPane',
+            icon: L.divIcon({ className: 'depth-label depth-label-dense', html: html, iconSize: [24, 14], iconAnchor: [12, 7] })
+        }).addTo(sparseDepthLayer);
     }
 }
 
@@ -1043,14 +1078,28 @@ async function fetchAircraft() {
         liveData.aircraft = data.aircraft || [];
 
         airLayer.clearLayers();
+        deepOceanAirLayer.clearLayers();
         liveData.aircraft.forEach(a => {
             const isHelo = (a.altFt != null && a.altFt < 3000) || (a.speedKt != null && a.speedKt < 120 && a.altFt < 5000);
             const icon  = isHelo ? '🚁' : '✈️';
             const label = `${icon} ${a.callsign}`;
             const cls   = isHelo ? 'traffic-label traffic-label-helo' : 'traffic-label traffic-label-air';
-            L.marker([a.lat, a.lng], { pane: 'trafficPane',
+            const marker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
                 icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20] })
-            }).addTo(airLayer);
+            });
+            marker.addTo(airLayer);
+
+            // Flag as Deep Ocean if > 80.4 km (50 miles) from land
+            const kmOff = distToShoreKm(a.lat, a.lng);
+            if (kmOff > 80.4) {
+                a.isDeepOcean = true;
+                const deepMarker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
+                    icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20] })
+                });
+                deepMarker.addTo(deepOceanAirLayer);
+            } else {
+                a.isDeepOcean = false;
+            }
         });
 
         // Fallback placeholders if OpenSky returned nothing (rate-limit / network)
@@ -1200,17 +1249,21 @@ function getAviationItems() {
             : a.registration
                 ? `${a.registration}${a.acType ? ' · ' + a.acType : ''}`
                 : (a.acType || a.icao24 || '—');
-        return { call: a.callsign, type: isHelo ? '🚁' : '✈️', route, alt, spd };
+        return { call: a.callsign, type: isHelo ? '🚁' : '✈️', route, alt, spd, isDeepOcean: a.isDeepOcean };
     });
     if (real.length) return real;
     return [
-        { call:'HAL12',  type:'✈️', route:'HNL ➔ LAX', alt:'FL310',  spd:'475 kts' },
-        { call:'SWA453', type:'✈️', route:'OAK ➔ HNL', alt:'4,200ft',spd:'180 kts' },
-        { call:'UAL930', type:'✈️', route:'HNL ➔ ORD', alt:'FL240',  spd:'Climbing'},
-        { call:'TOUR01', type:'🚁', route:'Local Tour', alt:'700ft',  spd:'95 kts'  },
-        { call:'USCG65', type:'🚁', route:'SAR Patrol', alt:'250ft',  spd:'120 kts' },
-        { call:'BLUE-H', type:'🚁', route:'Scenic Tour',alt:'900ft',  spd:'80 kts'  },
+        { call:'HAL12',  type:'✈️', route:'HNL ➔ LAX', alt:'FL310',  spd:'475 kts', isDeepOcean: false },
+        { call:'SWA453', type:'✈️', route:'OAK ➔ HNL', alt:'4,200ft',spd:'180 kts', isDeepOcean: false },
+        { call:'UAL930', type:'✈️', route:'HNL ➔ ORD', alt:'FL240',  spd:'Climbing', isDeepOcean: true }, // Fake deep ocean for testing if offline
+        { call:'TOUR01', type:'🚁', route:'Local Tour', alt:'700ft',  spd:'95 kts', isDeepOcean: false  },
+        { call:'USCG65', type:'🚁', route:'SAR Patrol', alt:'250ft',  spd:'120 kts', isDeepOcean: false },
+        { call:'BLUE-H', type:'🚁', route:'Scenic Tour',alt:'900ft',  spd:'80 kts', isDeepOcean: false  },
     ];
+}
+
+function getDeepOceanFlightItems() {
+    return getAviationItems().filter(a => a.isDeepOcean);
 }
 function renderAviationItem(item) {
     const isHelo = item.type === '🚁';
@@ -1555,32 +1608,9 @@ const uiStates = [
         id: 'state-hazard',
         title: "HAZARD MONITOR", sub: "SEISMIC · LIGHTNING · ALERTS · TURBULENCE", duration: 10000,
         view: 'hawaii',
-        layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer],
+        layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer, sparseDepthLayer, deepOceanAirLayer],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer],
         renderStatic() {
-            const quakes = liveData.quakes || [];
-            const big = quakes.filter(q => q.mag >= 2.5).slice(0, 2);
-            const bigRows = big.map(q => {
-                const color = q.mag >= 3 ? '#ee5253' : '#ff9f43';
-                const place = q.place.replace(/,?\s*Hawaii( Island)?$/, '');
-                return `<div class="data-row" style="border-left-color:${color};">
-                    <div><div class="row-primary">⚡ ${place}</div>
-                    <div class="row-secondary">${q.depth.toFixed(1)} km depth · ${timeAgo(q.time)}</div></div>
-                    <div class="row-meta" style="color:${color};">M${q.mag}</div>
-                </div>`;
-            }).join('') || `<div class="data-row" style="border-left-color:#2ecc71;">
-                <div><div class="row-primary" style="color:#2ecc71;">No significant seismic activity</div>
-                <div class="row-secondary">USGS live feed · last 24 h</div></div>
-            </div>`;
-            const alerts = liveData.alerts?.alerts || [];
-            const alertRows = alerts.map(a => {
-                const color = a.severity === 'Severe' || a.severity === 'Extreme' ? '#ee5253' :
-                              a.severity === 'Moderate' ? '#ff9f43' : '#a29bfe';
-                return `<div class="data-row" style="border-left-color:${color};">
-                    <div><div class="row-primary" style="color:${color};">⚠️ ${a.event}</div>
-                    <div class="row-secondary" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.headline}</div></div>
-                </div>`;
-            }).join('');
             return `<div class="hazard-legend">
                 <div class="legend-title">HAZARD STATUS</div>
                 <div class="legend-section">
@@ -1591,11 +1621,18 @@ const uiStates = [
                     <div class="legend-row"><span class="leg-dot" style="background:#a29bfe;"></span><span>Lightning / Minor Alert</span></div>
                     <div class="legend-row"><span class="leg-dot" style="background:#fdcb6e;"></span><span>Low Turb / Micro-seismic</span></div>
                 </div>
-            </div>
-            <div class="data-list" style="margin-top:4px;">${bigRows}${alertRows}</div>`;
+            </div>`;
         }
     },
-    // ── 6: SATELLITE — GOES-WEST ───────────────────────────────────────
+    // ── 6: TRAFFIC — DEEP OCEAN ───────────────────────────────────────
+    {
+        title: "TRAFFIC — DEEP OCEAN", sub: "OFFSHORE FLIGHTS (>50 MILES)", perPageMs: 3500,
+        view: 'hawaii',
+        layersOn:  [deepOceanAirLayer, airportLayer, sparseDepthLayer, hazardTextLayer],
+        layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer, airLayer, shipLayer, alertLayer, turbulenceLayer],
+        getItems: getDeepOceanFlightItems, renderItem: renderAviationItem
+    },
+    // ── 7: SATELLITE — GOES-WEST ───────────────────────────────────────
     {
         title: "SATELLITE — GOES-WEST", sub: "LAST 12 HOURS · GEOCOLOR", duration: 10000,
         view: 'hawaii',
@@ -1727,7 +1764,7 @@ function transitionState() {
     [
         stationLayer, surfLayer, currentLayer, alertLayer, turbulenceLayer, 
         airportLayer, hazardTextLayer, quakeLayer, lightningLayer, denseDepthLayer,
-        superDenseDepthLayer,
+        superDenseDepthLayer, sparseDepthLayer, deepOceanAirLayer,
         aqiLayer, airLayer, shipLayer, buoyLayer, tideLayer, radarLayerGroup,
         windLayer, waveLayer
     ].forEach(l => {

@@ -743,3 +743,5 @@ body, html {
     width: fit-content;
     align-self: flex-start;
 }
+
+.traffic-label-small { color: #74b9ff; }

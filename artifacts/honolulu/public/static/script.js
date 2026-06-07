@@ -386,12 +386,12 @@ for (let lat = 18.5; lat <= 22.5; lat += 0.15) {
 // =====================================================================
 var staticPoiMarkers = [];
 [
-    { c: [21.297, -157.959], n: "⚓ 51211 Pearl Harbor" },
-    { c: [21.414, -157.678], n: "⚓ 51202 Mokapu"     },
-    { c: [21.323, -158.149], n: "⚓ 51212 Barbers Pt" },
-    { c: [21.750, -158.200], n: "⚓ 51201 Waimea"     },
-    { c: [21.065, -156.970], n: "⚓ 51204 Pailolo Ch" },
-    { c: [21.080, -157.050], n: "⚓ 51213 Kawaihae"   },
+    
+    
+    
+    
+    
+    
 ].forEach(b => {
     var marker = L.marker(b.c, { pane: 'poiPane',
         icon: L.divIcon({ className: 'poi-label', html: b.n, iconSize: [150, 20] })
@@ -1150,7 +1150,25 @@ async function fetch7DayForecast() {
 
 // ─── Real aircraft from OpenSky Network (free, no key, 10-min cache on server)
 // Helicopter icon for low-altitude (<3000ft) or slow (<120kt) targets.
-async function fetchAircraft() {
+async 
+function getAircraftClass(acType, altFt, speedKt) {
+    if (!acType) {
+        if ((altFt != null && altFt < 3000) || (speedKt != null && speedKt < 120 && altFt < 5000)) return 'helo';
+        return 'air';
+    }
+    const t = acType.toUpperCase();
+    if (t.match(/^(R44|R66|H60|UH6|AH6|AS3|EC1|B06|B40|A10|AW1|MD5|S76|S92)/)) return 'helo';
+    if (t.match(/^(C1|C2|P2|PA|SR|BE|PC|TBM|M20|DA)/)) return 'small';
+    return 'air';
+}
+
+function getAircraftIcon(cls) {
+    if (cls === 'helo') return '🚁';
+    if (cls === 'small') return '🛩️';
+    return '✈️';
+}
+
+function fetchAircraft() {
     try {
         const r = await fetch('/api/aircraft');
         if (!r.ok) throw new Error(r.status);
@@ -1163,13 +1181,13 @@ async function fetchAircraft() {
             const id = a.callsign || a.icao24;
             recordTrafficBreadcrumb(id, a.lat, a.lng);
 
-            const isHelo = (a.altFt != null && a.altFt < 3000) || (a.speedKt != null && a.speedKt < 120 && a.altFt < 5000);
-            const icon  = isHelo ? '🚁' : '✈️';
+            const acCls = getAircraftClass(a.acType, a.altFt, a.speedKt);
+            const icon  = getAircraftIcon(acCls);
             const altStr  = a.altFt != null ? (a.altFt > 18000 ? 'FL' + Math.round(a.altFt/100) : Math.round(a.altFt) + 'ft') : '';
             const typeStr = a.acType || '';
             const call = a.callsign || a.icao24 || 'UNK';
             const label = `${icon} ${call} ${typeStr} ${altStr}`.trim();
-            const cls   = isHelo ? 'traffic-label traffic-label-helo' : 'traffic-label traffic-label-air';
+            const cls   = acCls === 'helo' ? 'traffic-label traffic-label-helo' : (acCls === 'small' ? 'traffic-label traffic-label-small' : 'traffic-label traffic-label-air');
             const marker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
                 icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] })
             });
@@ -1372,8 +1390,7 @@ function renderDeepOceanFlightItem(item) {
 }
 
 function renderAviationItem(item) {
-    const isHelo = item.type === '🚁';
-    const color  = isHelo ? '#ffd32a' : '#10ac84';
+    const color = item.acCls === 'helo' ? '#ffd32a' : (item.acCls === 'small' ? '#74b9ff' : '#10ac84');
     return `<div class="data-row" style="border-left-color:${color}; padding: 6px 12px; font-size: 0.9em;">
         <div><div class="row-primary">${item.type} ${item.call}</div><div class="row-secondary">${item.route}</div></div>
         <div class="row-meta">${item.alt}<br><span style="font-size:0.75em;color:#a4b0be;">${item.spd}</span></div>
@@ -1832,15 +1849,6 @@ const uiStates = [
         onExit()  { updateLegend('none'); hideHNLBox(); },
         renderStatic() {
             return `
-            <div style="margin-bottom: 12px; background: rgba(0,0,0,0.85); padding: 8px; border-radius: 6px; border: 1px solid ${apt.color}; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-                <div style="font-weight:bold; font-size:12px; color:${apt.color}; text-transform:uppercase; margin-bottom:4px; text-shadow: 0 0 4px ${apt.color};">
-                    ✈ HNL AIRPORT: ${apt.status}
-                </div>
-                <div style="font-size:9.5px; color:#dfe6e9; line-height:1.3;">
-                    ${apt.details}
-                </div>
-            </div>
-            
             <div class="hazard-legend" style="margin-bottom: 12px;">
                 <div class="legend-title">HAZARD STATUS</div>
                 <div class="legend-section">

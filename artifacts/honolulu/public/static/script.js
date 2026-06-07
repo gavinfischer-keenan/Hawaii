@@ -1165,7 +1165,10 @@ async function fetchAircraft() {
 
             const isHelo = (a.altFt != null && a.altFt < 3000) || (a.speedKt != null && a.speedKt < 120 && a.altFt < 5000);
             const icon  = isHelo ? '🚁' : '✈️';
-            const label = `${icon} ${a.callsign}`;
+            const altStr  = a.altFt != null ? (a.altFt > 18000 ? 'FL' + Math.round(a.altFt/100) : Math.round(a.altFt) + 'ft') : '';
+            const typeStr = a.acType || '';
+            const call = a.callsign || a.icao24 || 'UNK';
+            const label = `${icon} ${call} ${typeStr} ${altStr}`.trim();
             const cls   = isHelo ? 'traffic-label traffic-label-helo' : 'traffic-label traffic-label-air';
             const marker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
                 icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] })

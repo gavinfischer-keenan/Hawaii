@@ -1995,7 +1995,7 @@ function transitionState() {
         } else if (currView === 'waikiki') {
             document.getElementById('map').classList.add('waikiki-zoom');
             // Expanded by 5% from previous bounding box
-            map.flyToBounds([[21.2286, -157.8225], [21.2863, -157.7175]], { animate: true, duration: 1.8 });
+            map.flyToBounds([[21.2286, -157.8420], [21.2863, -157.7175]], { animate: true, duration: 1.8 });
             setTimeout(() => {
                 if (uiStates[currentStateIndex].view === 'waikiki') {
                     map.setMaxBounds(bounds);
@@ -2005,6 +2005,7 @@ function transitionState() {
             map.setMinZoom(7);
             map.flyToBounds([[18.7, -156.0], [21.9, -158.3]], { animate: true, duration: 1.8, padding: [30, 30] });
         }
+        lastView = currView;
     }
 
     // Re-flow surf/buoy labels now that layer visibility may have changed
@@ -2083,6 +2084,9 @@ Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTu
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
+
+
+
 
 
 

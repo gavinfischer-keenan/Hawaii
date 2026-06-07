@@ -53,7 +53,7 @@ body, html {
     left: 1%;
     right: auto;
     width: auto;
-    max-width: 80%;
+    max-width: 50%;
 }
 
 #overlay-container.state-hazard #panel-content {
@@ -729,3 +729,5 @@ body, html {
     color: #a4b0be;
     white-space: nowrap;
 }
+
+

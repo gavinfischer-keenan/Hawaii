@@ -785,7 +785,7 @@ async function fetchShips() {
 
             const rot = v.cog != null ? v.cog : (v.heading != null ? v.heading : 0);
             const offshore = !isVesselInPort(v);
-            const arrowStyle = `transform:rotate(${rot}deg);` + (offshore ? ` font-size:26px; color:#ff9f43; text-shadow: 0 0 12px #ff9f43, 0 0 4px #000; margin-right: 2px;` : ``);
+            const arrowStyle = `transform:rotate(${rot}deg);` + (offshore ? ` font-size:26px; color:#ff9f43; text-shadow: 0 0 12px #ff9f43, 0 0 4px #000; margin-right: 2px;` : ` font-size:18px; color:#ff9f43; text-shadow: 0 0 4px #000; margin-right: 2px;`);
             const html = `<div class="ship-pin" title="${v.name}">
                 <span class="ship-arrow" style="${arrowStyle}">➤</span>
                 <span class="ship-name">${v.name}</span>

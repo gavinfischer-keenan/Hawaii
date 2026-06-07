@@ -1717,7 +1717,6 @@ const uiStates = [
         onEnter() { setSurfMode('large'); updateLegend('wave'); },   // big boxed cards + declutter
         onExit()  { setSurfMode('small'); updateLegend('none'); }    // compact pins everywhere else
     },
-    },
     // 🟢 2: TRAFFIC – WAIKIKI & DIAMOND HEAD 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
     {
         title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3850, pageSize: 3, holdExtraMs: 3300,

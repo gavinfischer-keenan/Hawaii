@@ -2118,7 +2118,10 @@ fetchWind();
 // fetchWaves(); // Replaced with SWAN WMS layer
 fetch7DayForecast();
 
-Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()]).finally(() => {
+Promise.race([
+    Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()]),
+    new Promise(resolve => setTimeout(resolve, 8000))
+]).finally(() => {
     // Start rotation immediately after base data loads
     transitionState();
     setInterval(fetchWeather,     5 * 60 * 1000);

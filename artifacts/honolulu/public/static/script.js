@@ -1168,7 +1168,7 @@ function getAircraftIcon(cls) {
     return '✈️';
 }
 
-function fetchAircraft() {
+async function fetchAircraft() {
     try {
         const r = await fetch('/api/aircraft');
         if (!r.ok) throw new Error(r.status);
@@ -2132,6 +2132,7 @@ Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTu
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
+
 
 
 

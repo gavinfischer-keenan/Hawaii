@@ -3,7 +3,7 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 
-router.get("/api/airport", async (req: Request, res: Response) => {
+router.get("/airport", async (req: Request, res: Response) => {
     try {
         const response = await fetch("https://nasstatus.faa.gov/api/airport-events", {
             headers: {
@@ -15,7 +15,7 @@ router.get("/api/airport", async (req: Request, res: Response) => {
             throw new Error(`FAA API returned ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as any[];
         const hnl = data.find((a: any) => a.airportId === "HNL");
         
         let status = "NORMAL OPERATIONS";

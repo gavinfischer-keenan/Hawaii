@@ -12,30 +12,29 @@ router.get("/alerts", async (req, res) => {
       return;
     }
 
-    // Fetch all active NWS alerts for Hawaii
-    const r = await fetch("https://api.weather.gov/alerts/active?area=HI", {
-      headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" },
-    });
-    if (!r.ok) throw new Error(`NWS alerts ${r.status}`);
+    // Fetch active NWS alerts for Hawaii (land) and PH (coastal marine)
+    const [rHI, rPH] = await Promise.all([
+      fetch("https://api.weather.gov/alerts/active?area=HI", {
+        headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" },
+      }),
+      fetch("https://api.weather.gov/alerts/active?area=PH", {
+        headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" },
+      })
+    ]);
 
-    const json = (await r.json()) as {
-      features: Array<{
-        properties: {
-          event: string;
-          severity: string;
-          headline: string;
-          description: string;
-          effective: string;
-          expires: string;
-          areaDesc: string;
-        };
-      }>;
-    };
+    if (!rHI.ok) throw new Error(`NWS alerts HI ${rHI.status}`);
+    if (!rPH.ok) throw new Error(`NWS alerts PH ${rPH.status}`);
 
-    const alerts = json.features.map((f) => ({
+    const jsonHI = (await rHI.json()) as { features: any[] };
+    const jsonPH = (await rPH.json()) as { features: any[] };
+
+    const allFeatures = [...(jsonHI.features || []), ...(jsonPH.features || [])];
+
+    const alerts = allFeatures.map((f: any) => ({
       event: f.properties.event,
       severity: f.properties.severity,
       headline: f.properties.headline,
+      description: f.properties.description,
       areaDesc: f.properties.areaDesc,
       effective: f.properties.effective,
       expires: f.properties.expires,

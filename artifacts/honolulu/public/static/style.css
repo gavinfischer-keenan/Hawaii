@@ -49,11 +49,11 @@ body, html {
 
 #overlay-container.state-hazard {
     top: auto;
-    bottom: 4%;
-    left: 3%;
+    bottom: 1%;
+    left: 1%;
     right: auto;
     width: auto;
-    max-width: 70%;
+    max-width: 80%;
 }
 
 #overlay-container.state-hazard #panel-content {
@@ -551,7 +551,6 @@ body, html {
     color: #dfe6ff;
     font-family: monospace;
     text-transform: uppercase;
-    text-shadow: 0 0 3px #000, 1px 1px 2px #000;
     letter-spacing: 0.5px;
     text-shadow: 0 1px 3px rgba(0,0,0,0.95);
 }

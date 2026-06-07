@@ -12,6 +12,7 @@ import stationsRouter from "./stations";
 import currentsRouter from "./currents";
 import tideRouter from "./tide";
 import turbulenceRouter from "./turbulence";
+import airportRouter from "./airport";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(stationsRouter);
 router.use(currentsRouter);
 router.use(tideRouter);
 router.use(turbulenceRouter);
+router.use(airportRouter);
 
 export default router;

@@ -1455,7 +1455,7 @@ function getTrafficItems() {
 function getWaikikiTrafficItems() {
     const items = [];
     // Tightly match the map zoom bounds (Ala Wai Harbor to past Diamond Head)
-    const b = L.latLngBounds([21.230, -157.845], [21.290, -157.700]);
+    const b = L.latLngBounds([21.227, -157.852], [21.293, -157.693]);
 
     // Filter Ships
     (liveData.ships || []).forEach(v => {
@@ -2070,7 +2070,7 @@ function transitionState() {
         } else if (currView === 'waikiki') {
             document.getElementById('map').classList.add('waikiki-zoom');
             // Aligned tightly with traffic bounding box (Harbor at left edge, slightly less zoomed in)
-            map.flyToBounds([[21.230, -157.845], [21.290, -157.700]], { animate: true, duration: 1.8 });
+            map.flyToBounds([[21.227, -157.852], [21.293, -157.693]], { animate: true, duration: 1.8 });
             setTimeout(() => {
                 if (uiStates[currentStateIndex].view === 'waikiki') {
                     map.setMaxBounds(bounds);
@@ -2162,6 +2162,47 @@ Promise.race([
     setInterval(fetchCurrents,    5 * 60 * 1000); // marine model updates slowly
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
+
+// --- RASPBERRY PI HARDWARE DEGRADATION & KIOSK MANAGEMENT ---
+function initFPSMonitor() {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let lowFpsTicks = 0; // Consecutive seconds below threshold
+    
+    function measure() {
+        const now = performance.now();
+        frameCount++;
+        if (now - lastTime >= 1000) {
+            const fps = frameCount;
+            // If FPS is below 20 for 5 consecutive seconds, trigger low-perf mode
+            if (fps < 20) {
+                lowFpsTicks++;
+                if (lowFpsTicks >= 5 && !document.body.classList.contains('low-perf')) {
+                    console.warn('FPS dropped to ' + fps + ' for 5 seconds. Enabling low-performance mode (stripping backdrop-filters).');
+                    document.body.classList.add('low-perf');
+                }
+            } else {
+                lowFpsTicks = 0;
+            }
+            frameCount = 0;
+            lastTime = now;
+        }
+        requestAnimationFrame(measure);
+    }
+    requestAnimationFrame(measure);
+}
+
+function initDailyRefresh() {
+    // Schedule a hard reload every 24 hours to flush Chromium memory creeps
+    setTimeout(() => {
+        console.warn('Executing daily 24-hour Kiosk memory flush...');
+        window.location.reload();
+    }, 24 * 60 * 60 * 1000);
+}
+
+initFPSMonitor();
+initDailyRefresh();
+
 
 // --- RASPBERRY PI HARDWARE DEGRADATION & KIOSK MANAGEMENT ---
 function initFPSMonitor() {

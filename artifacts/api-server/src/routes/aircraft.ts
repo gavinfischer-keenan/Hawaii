@@ -111,6 +111,7 @@ router.get("/aircraft", async (req, res) => {
         origin: route?.origin ?? null, 
         dest: route?.dest ?? null,
         visit_count: meta?.visit_count ?? 1,
+        first_seen: meta?.first_seen ?? Date.now(),
         image_url: meta?.image_url ?? null
       };
     });
@@ -125,5 +126,6 @@ router.get("/aircraft", async (req, res) => {
 });
 
 export default router;
+
 
 

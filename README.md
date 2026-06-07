@@ -1,6 +1,6 @@
 # Hawaii Telemetry & Command Center
 
-**Version:** 1.1.5
+**Version:** 1.6
 **Architecture:** Node.js (Express) Backend API + Vanilla JS/Leaflet.js Frontend
 
 ## Overview
@@ -28,7 +28,7 @@ All data is proxied, normalized, and cached by the local Node.js backend to prev
 
 ---
 
-## Core UI States & Features (v1.1.4)
+## Core UI States & Features (v1.6)
 
 The dashboard automatically rotates through the following states:
 
@@ -73,7 +73,14 @@ The dashboard automatically rotates through the following states:
 
 ## Release Notes
 
-### v1.1.5 - Raspberry Pi Standalone Architecture Support
+### v1.6 - Persistent Image Tracking & PIC WANTED System
+*   **Persistent SQLite Backend Tracking:** Upgraded the Node.js backend to persistently log the first seen timestamps and visit counts for every localized vessel and aircraft via a persistent local JSON datastore, allowing the system to remember ships across reboots.
+*   **PIC WANTED Bounty System:** Introduced a smart visual flag on both the bottom Ocean Traffic HUD and the Waikiki Zoom HUD. Any aircraft or vessel tracked for more than 3 consecutive days without an uploaded custom image is automatically flagged with a solid red "[PIC WANTED]" badge.
+*   **Custom Image Admin Portal:** Created an entirely new `/admin.html` upload portal interface for the user to upload Base64 images directly to the Node.js backend mapped to specific ship MMSI or aircraft ICAO/Callsigns.
+*   **Dynamic Harbor Hiding:** Encoded the exact coordinates for the Ala Wai Small Boat Harbor. The Waikiki Super-Zoom frame algorithmically detects if tracked ships are docked in the harbor to suppress image displays, automatically materializing images only when the ship sails out into the bay.
+*   **Waikiki Viewport Expansion:** Widened the geographic bounding box of the Waikiki Traffic tab to properly encompass the Ala Wai harbor and Magic Island. 
+
+### v1.5 - Raspberry Pi Standalone Architecture Support
 *   **Hardware Graceful Degradation (FPS Monitor):** Added an ongoing `requestAnimationFrame` loop that monitors client rendering FPS. If the FPS drops below 20 for 5 consecutive seconds (due to excessive SVG aircraft rendering or GPU constraints on a Raspberry Pi), the system automatically strips all GPU-heavy `backdrop-filter: blur(...)` elements to instantly restore performance without crashing the kiosk.
 *   **Kiosk Auto-Flush:** Implemented a daily 24-hour automatic browser refresh to forcibly clear any creeping Chromium memory leaks during continuous 24/7 runtimes.
 *   **Deployment Configurations:** Shipped with a `.env.example` template for secure local secret management and an `ecosystem.config.cjs` to enable robust background process management via PM2.

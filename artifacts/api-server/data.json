@@ -1,0 +1,554 @@
+{
+  "vessels": {
+    "303681000": {
+      "mmsi": 303681000,
+      "name": "MOUNT DRUM",
+      "type": null,
+      "first_seen": 1780807785228,
+      "last_seen": 1780810661082,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "319407000": {
+      "mmsi": 319407000,
+      "name": "JANICE OF WYOMING",
+      "type": null,
+      "first_seen": 1780807770883,
+      "last_seen": 1780810670856,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "338272000": {
+      "mmsi": 338272000,
+      "name": "NATOMA",
+      "type": 32,
+      "first_seen": 1780808504440,
+      "last_seen": 1780810665338,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "338358775": {
+      "mmsi": 338358775,
+      "name": "PB_HANAKAHI",
+      "type": null,
+      "first_seen": 1780807800829,
+      "last_seen": 1780810620569,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "338534094": {
+      "mmsi": 338534094,
+      "name": "MAMALA BAY",
+      "type": null,
+      "first_seen": 1780810672039,
+      "last_seen": 1780810672039,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "338627000": {
+      "mmsi": 338627000,
+      "name": "KAPENA BOB PURDY",
+      "type": null,
+      "first_seen": 1780808762748,
+      "last_seen": 1780810704682,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "354453000": {
+      "mmsi": 354453000,
+      "name": "KODAIJISAN",
+      "type": 80,
+      "first_seen": 1780810644987,
+      "last_seen": 1780810644987,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "366606000": {
+      "mmsi": 366606000,
+      "name": "HAWAII RESPONDER",
+      "type": null,
+      "first_seen": 1780807816391,
+      "last_seen": 1780810520727,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "366888830": {
+      "mmsi": 366888830,
+      "name": "KAHU",
+      "type": 52,
+      "first_seen": 1780807865339,
+      "last_seen": 1780810604070,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "366952000": {
+      "mmsi": 366952000,
+      "name": "CG JUNIPER",
+      "type": 35,
+      "first_seen": 1780807924604,
+      "last_seen": 1780810622259,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "366972620": {
+      "mmsi": 366972620,
+      "name": "MIKIOI",
+      "type": null,
+      "first_seen": 1780807783019,
+      "last_seen": 1780810445875,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "366994450": {
+      "mmsi": 366994450,
+      "name": "PRIDE OF AMERICA",
+      "type": null,
+      "first_seen": 1780808226021,
+      "last_seen": 1780810296560,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367007880": {
+      "mmsi": 367007880,
+      "name": "JOSEPH SAUSE",
+      "type": null,
+      "first_seen": 1780807776108,
+      "last_seen": 1780809088220,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367300660": {
+      "mmsi": 367300660,
+      "name": "TIGER7",
+      "type": null,
+      "first_seen": 1780807789884,
+      "last_seen": 1780808318557,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367360990": {
+      "mmsi": 367360990,
+      "name": "KOKUA",
+      "type": null,
+      "first_seen": 1780807823381,
+      "last_seen": 1780810512476,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367389160": {
+      "mmsi": 367389160,
+      "name": "PI'ILANI",
+      "type": 52,
+      "first_seen": 1780807786583,
+      "last_seen": 1780809834294,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367416420": {
+      "mmsi": 367416420,
+      "name": "FREEDOM",
+      "type": null,
+      "first_seen": 1780807965967,
+      "last_seen": 1780810675275,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367433780": {
+      "mmsi": 367433780,
+      "name": "STAR OF HONOLULU",
+      "type": null,
+      "first_seen": 1780808250261,
+      "last_seen": 1780810331406,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367438000": {
+      "mmsi": 367438000,
+      "name": "MAUNAWILI",
+      "type": null,
+      "first_seen": 1780808270745,
+      "last_seen": 1780810612277,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367571490": {
+      "mmsi": 367571490,
+      "name": "GUTSY LADY 4",
+      "type": null,
+      "first_seen": 1780807816559,
+      "last_seen": 1780810695879,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367745320": {
+      "mmsi": 367745320,
+      "name": "EXPEDITIONS SIX",
+      "type": null,
+      "first_seen": 1780807771463,
+      "last_seen": 1780810701432,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "367776660": {
+      "mmsi": 367776660,
+      "name": "MOUNT BAKER",
+      "type": 52,
+      "first_seen": 1780809821734,
+      "last_seen": 1780809821734,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "368477000": {
+      "mmsi": 368477000,
+      "name": "KAPENA RAYMOND ALAPA",
+      "type": null,
+      "first_seen": 1780809149075,
+      "last_seen": 1780810672479,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "376404000": {
+      "mmsi": 376404000,
+      "name": "NAUTILUS",
+      "type": null,
+      "first_seen": 1780807764759,
+      "last_seen": 1780810644346,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "431194000": {
+      "mmsi": 431194000,
+      "name": "ITSUKUSHIMA",
+      "type": null,
+      "first_seen": 1780809615289,
+      "last_seen": 1780810695298,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "538010355": {
+      "mmsi": 538010355,
+      "name": "CINDY GLORY",
+      "type": null,
+      "first_seen": 1780808024316,
+      "last_seen": 1780810646062,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "636016661": {
+      "mmsi": 636016661,
+      "name": "NAVIGATOR COPERNICO",
+      "type": 89,
+      "first_seen": 1780808357200,
+      "last_seen": 1780810697164,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "636017260": {
+      "mmsi": 636017260,
+      "name": "SCARLET RAY",
+      "type": null,
+      "first_seen": 1780807838753,
+      "last_seen": 1780810538728,
+      "visit_count": 1,
+      "image_url": null
+    }
+  },
+  "aircraft": {
+    "aa64ba": {
+      "icao24": "aa64ba",
+      "callsign": "UAL1805",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808047311,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a48d84": {
+      "icao24": "a48d84",
+      "callsign": "N3927",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a7edb0": {
+      "icao24": "a7edb0",
+      "callsign": "N61PF",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "aa8f78": {
+      "icao24": "aa8f78",
+      "callsign": "N78PF",
+      "first_seen": 1780807740885,
+      "last_seen": 1780807810917,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a5f825": {
+      "icao24": "a5f825",
+      "callsign": "ASA1091",
+      "first_seen": 1780807740885,
+      "last_seen": 1780807740885,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a441ac": {
+      "icao24": "a441ac",
+      "callsign": "UAL1684",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ac90de": {
+      "icao24": "ac90de",
+      "callsign": "N909CS",
+      "first_seen": 1780807740885,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a7a666": {
+      "icao24": "a7a666",
+      "callsign": "N592SA",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a1b024": {
+      "icao24": "a1b024",
+      "callsign": "UNKNWN",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a6235b": {
+      "icao24": "a6235b",
+      "callsign": "ASA1186",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808078156,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a12ae9": {
+      "icao24": "a12ae9",
+      "callsign": "UAL1723",
+      "first_seen": 1780807740885,
+      "last_seen": 1780807810917,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a5d814": {
+      "icao24": "a5d814",
+      "callsign": "ASA1102",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808139151,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a8690a": {
+      "icao24": "a8690a",
+      "callsign": "ATN3307",
+      "first_seen": 1780807740885,
+      "last_seen": 1780808047311,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a3329a": {
+      "icao24": "a3329a",
+      "callsign": "N305HF",
+      "first_seen": 1780808047311,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ae52e5": {
+      "icao24": "ae52e5",
+      "callsign": "IMUA841",
+      "first_seen": 1780808047311,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a7b0f5": {
+      "icao24": "a7b0f5",
+      "callsign": "STT329",
+      "first_seen": 1780808047311,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a61bed": {
+      "icao24": "a61bed",
+      "callsign": "ASA1157",
+      "first_seen": 1780808047311,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "abfa24": {
+      "icao24": "abfa24",
+      "callsign": "AAL102",
+      "first_seen": 1780808139151,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ac50fa": {
+      "icao24": "ac50fa",
+      "callsign": "FDX948",
+      "first_seen": 1780808209223,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ac0b50": {
+      "icao24": "ac0b50",
+      "callsign": "SWA2152",
+      "first_seen": 1780808403722,
+      "last_seen": 1780808403722,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ab00df": {
+      "icao24": "ab00df",
+      "callsign": "N808PE",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ac1ad7": {
+      "icao24": "ac1ad7",
+      "callsign": "SWA664",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "7c37bb": {
+      "icao24": "7c37bb",
+      "callsign": "VHLAL",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ae5254": {
+      "icao24": "ae5254",
+      "callsign": "IMUA741",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810417832,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a6147f": {
+      "icao24": "a6147f",
+      "callsign": "ASA1154",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810417832,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a40e41": {
+      "icao24": "a40e41",
+      "callsign": "AAH43",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810347454,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "abfd00": {
+      "icao24": "abfd00",
+      "callsign": "SWA2170",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a610c8": {
+      "icao24": "a610c8",
+      "callsign": "ASA1175",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a5e339": {
+      "icao24": "a5e339",
+      "callsign": "ASA1112",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "ae1471": {
+      "icao24": "ae1471",
+      "callsign": "RCH641",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "abfac6": {
+      "icao24": "abfac6",
+      "callsign": "SWA3098",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a1bb45": {
+      "icao24": "a1bb45",
+      "callsign": "UAL1170",
+      "first_seen": 1780810286339,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a5939c": {
+      "icao24": "a5939c",
+      "callsign": "UNKNWN",
+      "first_seen": 1780810347454,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a9ec06": {
+      "icao24": "a9ec06",
+      "callsign": "UAL1718",
+      "first_seen": 1780810347454,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a05a25": {
+      "icao24": "a05a25",
+      "callsign": "UAL2308",
+      "first_seen": 1780810417832,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "c0332c": {
+      "icao24": "c0332c",
+      "callsign": "ROU1783",
+      "first_seen": 1780810417832,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    },
+    "a1d7ea": {
+      "icao24": "a1d7ea",
+      "callsign": "ASA825",
+      "first_seen": 1780810488043,
+      "last_seen": 1780810557960,
+      "visit_count": 1,
+      "image_url": null
+    }
+  }
+}

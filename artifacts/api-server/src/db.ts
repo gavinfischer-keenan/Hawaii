@@ -1,35 +1,96 @@
-
+import fs from 'fs';
+import path from 'path';
 import { logger } from './lib/logger.js';
 
 export interface DBVessel { mmsi: number; name: string; type: number | null; first_seen: number; last_seen: number; visit_count: number; image_url: string | null; }
 export interface DBAircraft { icao24: string; callsign: string; first_seen: number; last_seen: number; visit_count: number; image_url: string | null; }
 
-const vessels = new Map<number, DBVessel>();
-const aircraft = new Map<string, DBAircraft>();
+interface DatabaseStructure {
+  vessels: Record<number, DBVessel>;
+  aircraft: Record<string, DBAircraft>;
+}
+
+const dbPath = path.join(process.cwd(), 'data.json');
+
+let db: DatabaseStructure = {
+  vessels: {},
+  aircraft: {}
+};
+
+// Load database
+try {
+  if (fs.existsSync(dbPath)) {
+    const raw = fs.readFileSync(dbPath, 'utf8');
+    db = JSON.parse(raw);
+    logger.info(`Loaded database from ${dbPath}`);
+  }
+} catch (err) {
+  logger.error({ err }, 'Failed to load database.json');
+}
+
+// Save database (debounced to avoid thrashing disk)
+let saveTimeout: NodeJS.Timeout | null = null;
+function saveDatabase() {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    try {
+      fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+    } catch (err) {
+      logger.error({ err }, 'Failed to save database.json');
+    }
+  }, 5000);
+}
 
 export function logVesselObservation(mmsi: number, name: string, type: number | null) {
-  const existing = vessels.get(mmsi);
+  const existing = db.vessels[mmsi];
   const now = Date.now();
   if (existing) {
-    if (now - existing.last_seen > 6 * 60 * 60 * 1000) existing.visit_count++;
+    if (now - existing.last_seen > 6 * 60 * 60 * 1000) {
+      existing.visit_count++;
+    }
     existing.last_seen = now;
   } else {
-    vessels.set(mmsi, { mmsi, name, type, first_seen: now, last_seen: now, visit_count: 1, image_url: null });
+    db.vessels[mmsi] = { mmsi, name, type, first_seen: now, last_seen: now, visit_count: 1, image_url: null };
   }
+  saveDatabase();
 }
 
-export function getVesselMeta(mmsi: number): DBVessel | undefined { return vessels.get(mmsi); }
+export function getVesselMeta(mmsi: number): DBVessel | undefined {
+  return db.vessels[mmsi];
+}
+
+export function setVesselImage(mmsi: number, url: string) {
+  if (!db.vessels[mmsi]) {
+    db.vessels[mmsi] = { mmsi, name: 'Unknown', type: null, first_seen: Date.now(), last_seen: Date.now(), visit_count: 1, image_url: url };
+  } else {
+    db.vessels[mmsi].image_url = url;
+  }
+  saveDatabase();
+}
 
 export function logAircraftObservation(icao24: string, callsign: string) {
-  const existing = aircraft.get(icao24);
+  const existing = db.aircraft[icao24];
   const now = Date.now();
   if (existing) {
-    if (now - existing.last_seen > 6 * 60 * 60 * 1000) existing.visit_count++;
+    if (now - existing.last_seen > 6 * 60 * 60 * 1000) {
+      existing.visit_count++;
+    }
     existing.last_seen = now;
   } else {
-    aircraft.set(icao24, { icao24, callsign, first_seen: now, last_seen: now, visit_count: 1, image_url: null });
+    db.aircraft[icao24] = { icao24, callsign, first_seen: now, last_seen: now, visit_count: 1, image_url: null };
   }
+  saveDatabase();
 }
 
-export function getAircraftMeta(icao24: string): DBAircraft | undefined { return aircraft.get(icao24); }
+export function getAircraftMeta(icao24: string): DBAircraft | undefined {
+  return db.aircraft[icao24];
+}
 
+export function setAircraftImage(icao24: string, url: string) {
+  if (!db.aircraft[icao24]) {
+    db.aircraft[icao24] = { icao24, callsign: 'Unknown', first_seen: Date.now(), last_seen: Date.now(), visit_count: 1, image_url: url };
+  } else {
+    db.aircraft[icao24].image_url = url;
+  }
+  saveDatabase();
+}

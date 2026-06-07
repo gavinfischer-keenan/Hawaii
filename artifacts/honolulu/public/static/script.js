@@ -1320,22 +1320,37 @@ function getAviationItems() {
             : a.registration
                 ? `${a.registration}${a.acType ? ' · ' + a.acType : ''}`
                 : (a.acType || a.icao24 || '—');
-        return { call: a.callsign, type: isHelo ? '🚁' : '✈️', route, alt, spd, isDeepOcean: a.isDeepOcean };
+        return { call: a.callsign, type: isHelo ? '🚁' : '✈️', route, alt, spd, isDeepOcean: a.isDeepOcean, origin: a.origin, dest: a.dest };
     });
     if (real.length) return real;
     return [
-        { call:'HAL12',  type:'✈️', route:'HNL ➔ LAX', alt:'FL310',  spd:'475 kts', isDeepOcean: false },
-        { call:'SWA453', type:'✈️', route:'OAK ➔ HNL', alt:'4,200ft',spd:'180 kts', isDeepOcean: false },
-        { call:'UAL930', type:'✈️', route:'HNL ➔ ORD', alt:'FL240',  spd:'Climbing', isDeepOcean: true }, // Fake deep ocean for testing if offline
-        { call:'TOUR01', type:'🚁', route:'Local Tour', alt:'700ft',  spd:'95 kts', isDeepOcean: false  },
-        { call:'USCG65', type:'🚁', route:'SAR Patrol', alt:'250ft',  spd:'120 kts', isDeepOcean: false },
-        { call:'BLUE-H', type:'🚁', route:'Scenic Tour',alt:'900ft',  spd:'80 kts', isDeepOcean: false  },
+        { call:'HAL12',  type:'✈️', route:'HNL ➔ LAX', alt:'FL310',  spd:'475 kts', isDeepOcean: false, origin: 'HNL', dest: 'LAX' },
+        { call:'SWA453', type:'✈️', route:'OAK ➔ HNL', alt:'4,200ft',spd:'180 kts', isDeepOcean: false, origin: 'OAK', dest: 'HNL' },
+        { call:'UAL930', type:'✈️', route:'HNL ➔ ORD', alt:'FL240',  spd:'Climbing', isDeepOcean: true, origin: 'HNL', dest: 'ORD' }, // Fake deep ocean for testing if offline
+        { call:'TOUR01', type:'🚁', route:'Local Tour', alt:'700ft',  spd:'95 kts', isDeepOcean: false, origin: null, dest: null },
+        { call:'USCG65', type:'🚁', route:'SAR Patrol', alt:'250ft',  spd:'120 kts', isDeepOcean: false, origin: null, dest: null },
+        { call:'BLUE-H', type:'🚁', route:'Scenic Tour',alt:'900ft',  spd:'80 kts', isDeepOcean: false, origin: null, dest: null },
     ];
 }
 
 function getDeepOceanFlightItems() {
-    return getAviationItems().filter(a => a.isDeepOcean);
+    const hawaiiIata = ['HNL','OGG','KOA','ITO','LIH','LNY','JHM','MKK','HNM'];
+    return getAviationItems().filter(a => {
+        if (!a.origin || !a.dest) return false;
+        const isToFromHNL = a.origin === 'HNL' || a.dest === 'HNL';
+        const isMainland = !hawaiiIata.includes(a.origin) || !hawaiiIata.includes(a.dest);
+        return isToFromHNL && isMainland;
+    });
 }
+
+function renderDeepOceanFlightItem(item) {
+    return `<div class="data-row" style="border-left-color:#10ac84; padding: 6px 12px; font-size: 0.9em; display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-weight:bold; width:65px; color:#10ac84;">${item.call}</div>
+        <div style="flex-grow:1; text-align:center; color:#dfe6ff; font-size:0.85em;">${item.route}</div>
+        <div style="width:55px; text-align:right; color:#a4b0be; font-size:0.85em;">${item.alt}</div>
+    </div>`;
+}
+
 function renderAviationItem(item) {
     const isHelo = item.type === '🚁';
     const color  = isHelo ? '#ffd32a' : '#10ac84';
@@ -1740,7 +1755,7 @@ const uiStates = [
         view: 'hawaii',
         layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer, romsTempLayer],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer, sparseDepthLayer, deepOceanAirLayer],
-        getItems: getDeepOceanFlightItems, renderItem: renderAviationItem,
+        getItems: getDeepOceanFlightItems, renderItem: renderDeepOceanFlightItem,
         onEnter() { fetchAirport(); updateLegend('none'); },
         onExit()  { updateLegend('none'); },
         renderStatic() {

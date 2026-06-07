@@ -68,12 +68,6 @@ body, html {
     margin-bottom: 0 !important;
 }
 
-#overlay-container.state-hazard .data-list {
-    display: grid;
-    grid-template-columns: repeat(4, 130px);
-    gap: 4px;
-    align-content: start;
-}
 
 #overlay-container.state-hazard .data-row {
     padding: 4px 6px !important;

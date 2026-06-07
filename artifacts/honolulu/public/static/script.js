@@ -59,7 +59,7 @@ var staticPoiLayer  = L.layerGroup().addTo(map);
 var radarLayerGroup = L.layerGroup();
 var currentLayer    = L.layerGroup();
 var windLayer       = L.layerGroup();
-var waveLayer       = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thredds/wms/swan_oahu/SWAN_Oahu_Regional_Wave_Model_best.ncd', {
+var waveLayerOahu = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thredds/wms/swan_oahu/SWAN_Oahu_Regional_Wave_Model_best.ncd', {
     layers: 'shgt',
     format: 'image/png',
     transparent: true,
@@ -67,6 +67,23 @@ var waveLayer       = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thred
     colorscalerange: '0,2.5',
     styles: 'boxfill/rainbow'
 });
+var waveLayerMaui = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thredds/wms/swan_maui/SWAN_Maui_Regional_Wave_Model_best.ncd', {
+    layers: 'shgt',
+    format: 'image/png',
+    transparent: true,
+    opacity: 0.65,
+    colorscalerange: '0,2.5',
+    styles: 'boxfill/rainbow'
+});
+var waveLayerKauai = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thredds/wms/swan_kauai/SWAN_Kauai_Regional_Wave_Model_best.ncd', {
+    layers: 'shgt',
+    format: 'image/png',
+    transparent: true,
+    opacity: 0.65,
+    colorscalerange: '0,2.5',
+    styles: 'boxfill/rainbow'
+});
+var waveLayer = L.layerGroup([waveLayerOahu, waveLayerMaui, waveLayerKauai]);
 var buoyLayer       = L.layerGroup();
 var quakeLayer      = L.layerGroup();
 var lightningLayer  = L.layerGroup();

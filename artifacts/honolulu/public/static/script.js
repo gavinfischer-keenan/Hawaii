@@ -1454,8 +1454,8 @@ function getTrafficItems() {
 
 function getWaikikiTrafficItems() {
     const items = [];
-    // Tightly match the map zoom bounds
-    const b = L.latLngBounds([21.2286, -157.8225], [21.2863, -157.7175]);
+    // Tightly match the map zoom bounds (Ala Wai Harbor to past Diamond Head)
+    const b = L.latLngBounds([21.230, -157.845], [21.290, -157.700]);
 
     // Filter Ships
     (liveData.ships || []).forEach(v => {
@@ -2069,8 +2069,8 @@ function transitionState() {
             }, 1900);
         } else if (currView === 'waikiki') {
             document.getElementById('map').classList.add('waikiki-zoom');
-            // Expanded by 5% from previous bounding box
-            map.flyToBounds([[21.2286, -157.8420], [21.2863, -157.7175]], { animate: true, duration: 1.8 });
+            // Aligned tightly with traffic bounding box (Harbor at left edge, slightly less zoomed in)
+            map.flyToBounds([[21.230, -157.845], [21.290, -157.700]], { animate: true, duration: 1.8 });
             setTimeout(() => {
                 if (uiStates[currentStateIndex].view === 'waikiki') {
                     map.setMaxBounds(bounds);

@@ -680,3 +680,52 @@ body, html {
     margin-top: 4px;
     text-align: right;
 }
+
+/* ?? BOTTOM TRAFFIC HUD ???????????????????????????????????????????????????????????????????????????? */
+#bottom-traffic-hud {
+    position: absolute;
+    bottom: 1%;
+    left: calc(1% + 260px);
+    z-index: 999;
+    background: rgba(10, 14, 26, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 6px 8px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+    display: none;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 8px;
+}
+#bottom-traffic-content {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+}
+.btm-hud-item {
+    border-left: 3px solid;
+    padding: 2px 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: rgba(0,0,0,0.4);
+    border-radius: 0 4px 4px 0;
+    min-width: 100px;
+}
+.btm-hud-title {
+    font-size: 10.5px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+.btm-hud-sub {
+    font-size: 9px;
+    color: #dfe6e9;
+    white-space: nowrap;
+    margin-top: 1px;
+}
+.btm-hud-spd {
+    font-size: 9px;
+    color: #a4b0be;
+    white-space: nowrap;
+}

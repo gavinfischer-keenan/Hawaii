@@ -1418,10 +1418,12 @@ function getTrafficItems() {
 
 function getWaikikiTrafficItems() {
     const items = [];
+    // Tightly match the map zoom bounds
+    const b = L.latLngBounds([21.2286, -157.8225], [21.2863, -157.7175]);
 
     // Filter Ships
     (liveData.ships || []).forEach(v => {
-        if (v.lat != null && v.lng != null) {
+        if (v.lat != null && v.lng != null && b.contains([v.lat, v.lng])) {
             items.push({
                 icon: '🚢', name: v.name,
                 detail: v.sog != null ? `${v.sog.toFixed(1)} kt` : '--',
@@ -1435,7 +1437,7 @@ function getWaikikiTrafficItems() {
     (liveData.aircraft || []).forEach(a => {
         // Aircraft from API have .lon instead of .lng
         const lng = a.lon != null ? a.lon : a.lng;
-        if (a.lat != null && lng != null) {
+        if (a.lat != null && lng != null && b.contains([a.lat, lng])) {
             let detail = `Reg: ${a.registration || 'UNK'} Type: ${a.acType || 'UNK'}`;
             if (a.origin && a.dest) detail += `\nRoute: ${a.origin} -> ${a.dest}`;
             items.push({
@@ -1521,14 +1523,64 @@ function renderShipItem(item) {
 // UI STATE MACHINE
 // =====================================================================
 
+let _bottomHudTimer = null;
+
+function renderBottomTrafficItem(item) {
+    return `<div class="btm-hud-item" style="border-left-color:${item.color};">
+        <div class="btm-hud-title" style="color:${item.color}">${item.icon} ${item.name}</div>
+        <div class="btm-hud-sub">${item.sub}</div>
+        <div class="btm-hud-spd">${item.detail}</div>
+    </div>`;
+}
+
+function startBottomTrafficHUD(mode) {
+    const hud = document.getElementById('bottom-traffic-hud');
+    const content = document.getElementById('bottom-traffic-content');
+    if (!hud || !content) return;
+    hud.style.display = 'flex';
+
+    function update() {
+        let items = [];
+        if (mode === 'air') {
+            const b = L.latLngBounds([[18.5, -160.5], [22.5, -154.5]]);
+            items = getAviationItems()
+                .filter(a => a.lat != null && a.lng != null && b.contains([a.lat, a.lng]))
+                .map(a => ({ icon: a.type, name: a.call, detail: `${a.alt} ${a.spd}`, sub: a.route, color: a.type === '??' ? '#ffd32a' : '#1dd1a1' }));
+        } else if (mode === 'ship') {
+            const b = L.latLngBounds([[18.5, -160.5], [22.5, -154.5]]);
+            items = (liveData.ships || [])
+                .filter(v => v.lat != null && v.lng != null && b.contains([v.lat, v.lng]))
+                .sort((a, b) => (b.sog || 0) - (a.sog || 0))
+                .map(v => ({ icon: '??', name: v.name, detail: v.sog != null ? `${v.sog.toFixed(1)} kt` : '--', sub: shipTypeLabel(v.type), color: '#0984e3' }));
+        }
+        
+        const displayItems = items.slice(0, 4);
+        if (displayItems.length) {
+            content.innerHTML = displayItems.map(renderBottomTrafficItem).join('');
+        } else {
+            content.innerHTML = `<div style="font-size:10px; color:#a4b0be; padding:4px;">No ${mode === 'air' ? 'Aircraft' : 'Vessels'} Local</div>`;
+        }
+    }
+    
+    update();
+    if (_bottomHudTimer) clearInterval(_bottomHudTimer);
+    _bottomHudTimer = setInterval(update, 5000);
+}
+
+function stopBottomTrafficHUD() {
+    const hud = document.getElementById('bottom-traffic-hud');
+    if (hud) hud.style.display = 'none';
+    if (_bottomHudTimer) { clearInterval(_bottomHudTimer); _bottomHudTimer = null; }
+}
+
 function updateLegend(type) {
     let el = document.getElementById('particle-legend');
     if (!el) {
         el = document.createElement('div');
         el.id = 'particle-legend';
         el.style.position = 'absolute';
-        el.style.bottom = '20px';
-        el.style.left = '20px';
+        el.style.bottom = '1%';
+        el.style.left = '1%';
         el.style.zIndex = '999';
         el.style.background = 'rgba(0, 0, 0, 0.75)';
         el.style.border = '1px solid rgba(255, 255, 255, 0.2)';
@@ -1620,7 +1672,7 @@ function updateLegend(type) {
     if (type === 'roms') {
         el.style.bottom = '250px';
     } else {
-        el.style.bottom = '20px';
+        el.style.bottom = '1%';
     }
 }
 
@@ -1636,12 +1688,14 @@ const uiStates = [
             const fb = document.getElementById('forecast-box');
             if (fb) fb.style.display = 'block';
             updateLegend('wind');
+            startBottomTrafficHUD('air');
         },
         onExit()  { 
             document.getElementById('main-dash').classList.remove('hud-hidden'); 
             const fb = document.getElementById('forecast-box');
             if (fb) fb.style.display = 'none';
             updateLegend('none');
+            stopBottomTrafficHUD();
         }
     },
     // 🟢 1: SURF & OCEAN – combined surf cards + buoy HUDs 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
@@ -1714,8 +1768,8 @@ const uiStates = [
             ${buoyDataHtml}
             ${oceanWarningsHtml}`;
         },
-        onEnter() { setSurfMode('large'); updateLegend('wave'); },   // big boxed cards + declutter
-        onExit()  { setSurfMode('small'); updateLegend('none'); }    // compact pins everywhere else
+        onEnter() { setSurfMode('large'); updateLegend('wave'); startBottomTrafficHUD('ship'); },   // big boxed cards + declutter
+        onExit()  { setSurfMode('small'); updateLegend('none'); stopBottomTrafficHUD(); }    // compact pins everywhere else
     },
     // 🟢 2: TRAFFIC – WAIKIKI & DIAMOND HEAD 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
     {
@@ -2029,5 +2083,6 @@ Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTu
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
+
 
 

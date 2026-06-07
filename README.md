@@ -1,6 +1,6 @@
 # Hawaii Telemetry & Command Center
 
-**Version:** 1.1.4 Baseline Release
+**Version:** 1.1.5
 **Architecture:** Node.js (Express) Backend API + Vanilla JS/Leaflet.js Frontend
 
 ## Overview
@@ -68,3 +68,13 @@ The dashboard automatically rotates through the following states:
 *   **Routing/Drive Times:** Real-time street-level traffic routing (e.g., Google Maps drive times) is not currently implemented.
 *   **Interactive Input:** The UI is designed as a passive heads-up display (HUD); manual map panning/zooming will be overridden by the state machine's internal timers.
 *   **Historical Data:** All visuals represent strictly *real-time* or *forecasted* data; historical playback is not supported.
+
+---
+
+## Release Notes
+
+### v1.1.5 - Raspberry Pi Standalone Architecture Support
+*   **Hardware Graceful Degradation (FPS Monitor):** Added an ongoing `requestAnimationFrame` loop that monitors client rendering FPS. If the FPS drops below 20 for 5 consecutive seconds (due to excessive SVG aircraft rendering or GPU constraints on a Raspberry Pi), the system automatically strips all GPU-heavy `backdrop-filter: blur(...)` elements to instantly restore performance without crashing the kiosk.
+*   **Kiosk Auto-Flush:** Implemented a daily 24-hour automatic browser refresh to forcibly clear any creeping Chromium memory leaks during continuous 24/7 runtimes.
+*   **Deployment Configurations:** Shipped with a `.env.example` template for secure local secret management and an `ecosystem.config.cjs` to enable robust background process management via PM2.
+*   **API Resilience:** Rebuilt the Node.js backend to forcefully append `AbortSignal.timeout(8000)` to all 15+ external government/API data fetches, completely insulating the system against memory exhaustion from hanging remote sockets.

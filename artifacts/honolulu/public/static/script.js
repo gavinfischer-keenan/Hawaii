@@ -60,7 +60,7 @@ var radarLayerGroup = L.layerGroup();
 var currentLayer    = L.layerGroup();
 var windLayer       = L.layerGroup();
 var waveLayer       = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thredds/wms/swan_oahu/SWAN_Oahu_Regional_Wave_Model_best.ncd', {
-    layers: 'hs',
+    layers: 'shgt',
     format: 'image/png',
     transparent: true,
     opacity: 0.65,
@@ -1303,7 +1303,7 @@ function getTrafficItems() {
 
 function getWaikikiTrafficItems() {
     const items = [];
-    const b = L.latLngBounds([21.23, -157.82], [21.285, -157.72]);
+    const b = L.latLngBounds([21.21, -157.88], [21.30, -157.70]);
 
     // Filter Ships
     (liveData.ships || []).forEach(v => {
@@ -1475,6 +1475,13 @@ function updateLegend(type) {
 
     el.innerHTML = html;
     el.style.display = 'block';
+
+    // Position dynamically so it stacks cleanly above the hazard box when in roms/hazard view
+    if (type === 'roms') {
+        el.style.bottom = '175px';
+    } else {
+        el.style.bottom = '20px';
+    }
 }
 
 const uiStates = [

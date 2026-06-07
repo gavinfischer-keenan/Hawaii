@@ -1150,7 +1150,6 @@ async function fetch7DayForecast() {
 
 // ─── Real aircraft from OpenSky Network (free, no key, 10-min cache on server)
 // Helicopter icon for low-altitude (<3000ft) or slow (<120kt) targets.
-async 
 function getAircraftClass(acType, altFt, speedKt) {
     if (!acType) {
         if ((altFt != null && altFt < 3000) || (speedKt != null && speedKt < 120 && altFt < 5000)) return 'helo';

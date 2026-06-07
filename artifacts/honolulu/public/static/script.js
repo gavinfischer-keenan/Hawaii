@@ -1091,7 +1091,7 @@ async function fetchAircraft() {
             const label = `${icon} ${a.callsign}`;
             const cls   = isHelo ? 'traffic-label traffic-label-helo' : 'traffic-label traffic-label-air';
             const marker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
-                icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20] })
+                icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] })
             });
             marker.addTo(airLayer);
             drawBreadcrumbs(id, airLayer, '#00d2d3');
@@ -1102,7 +1102,7 @@ async function fetchAircraft() {
                 a.isDeepOcean = true;
                 const deepCls = cls + ' deep-ocean-air';
                 const deepMarker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
-                    icon: L.divIcon({ className: deepCls, html: label, iconSize: [200, 20] })
+                    icon: L.divIcon({ className: deepCls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] })
                 });
                 deepMarker.addTo(deepOceanAirLayer);
                 drawBreadcrumbs(id, deepOceanAirLayer, '#00d2d3');

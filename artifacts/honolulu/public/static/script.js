@@ -660,6 +660,26 @@ function updateSurfLabels(buoys) {
 // =====================================================================
 var liveData = { weather: null, buoys: null, quakes: null, alerts: null, turbulence: null, airquality: null, aircraft: [], ships: [], shipsConnected: false, stations: [], currents: null, tide: null };
 
+let trafficHistory = {};
+const BREADCRUMB_LIMIT = 12;
+
+function recordTrafficBreadcrumb(id, lat, lng) {
+    if (!id || lat == null || lng == null) return;
+    if (!trafficHistory[id]) trafficHistory[id] = [];
+    trafficHistory[id].push([lat, lng]);
+    if (trafficHistory[id].length > BREADCRUMB_LIMIT) {
+        trafficHistory[id].shift();
+    }
+}
+
+function drawBreadcrumbs(id, layer, color) {
+    if (!trafficHistory[id] || trafficHistory[id].length < 2) return;
+    trafficHistory[id].forEach((pt, i) => {
+        const opacity = (i + 1) / trafficHistory[id].length * 0.8;
+        L.circleMarker(pt, { radius: 2, color: color, fillOpacity: opacity, opacity: opacity, weight: 1, pane: 'trafficPane' }).addTo(layer);
+    });
+}
+
 const buoyCoords = {
     '51201': [21.750, -158.200],
     '51211': [21.297, -157.959],
@@ -759,6 +779,10 @@ async function fetchShips() {
         shipLayer.clearLayers();
         liveData.ships.forEach(v => {
             if (v.lat == null || v.lng == null) return;
+            const id = v.mmsi || v.name;
+            recordTrafficBreadcrumb(id, v.lat, v.lng);
+            drawBreadcrumbs(id, shipLayer, '#ff9f43');
+
             const rot = v.cog != null ? v.cog : (v.heading != null ? v.heading : 0);
             const offshore = !isVesselInPort(v);
             const arrowStyle = `transform:rotate(${rot}deg);` + (offshore ? ` font-size:26px; color:#ff9f43; text-shadow: 0 0 12px #ff9f43, 0 0 4px #000; margin-right: 2px;` : ``);
@@ -1050,6 +1074,9 @@ async function fetchAircraft() {
         airLayer.clearLayers();
         deepOceanAirLayer.clearLayers();
         liveData.aircraft.forEach(a => {
+            const id = a.callsign || a.icao24;
+            recordTrafficBreadcrumb(id, a.lat, a.lng);
+
             const isHelo = (a.altFt != null && a.altFt < 3000) || (a.speedKt != null && a.speedKt < 120 && a.altFt < 5000);
             const icon  = isHelo ? '🚁' : '✈️';
             const label = `${icon} ${a.callsign}`;
@@ -1058,6 +1085,7 @@ async function fetchAircraft() {
                 icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20] })
             });
             marker.addTo(airLayer);
+            drawBreadcrumbs(id, airLayer, '#00d2d3');
 
             // Flag as Deep Ocean if > 80.4 km (50 miles) from land
             const kmOff = distToShoreKm(a.lat, a.lng);
@@ -1068,6 +1096,7 @@ async function fetchAircraft() {
                     icon: L.divIcon({ className: deepCls, html: label, iconSize: [200, 20] })
                 });
                 deepMarker.addTo(deepOceanAirLayer);
+                drawBreadcrumbs(id, deepOceanAirLayer, '#00d2d3');
             } else {
                 a.isDeepOcean = false;
             }
@@ -1478,7 +1507,7 @@ function updateLegend(type) {
 
     // Position dynamically so it stacks cleanly above the hazard box when in roms/hazard view
     if (type === 'roms') {
-        el.style.bottom = '220px';
+        el.style.bottom = '250px';
     } else {
         el.style.bottom = '20px';
     }
@@ -1871,17 +1900,17 @@ fetch7DayForecast();
 Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()]).finally(() => {
     // Start rotation immediately after base data loads
     transitionState();
-    setInterval(fetchWeather,     2 * 60 * 1000);
-    setInterval(fetchBuoys,       2 * 60 * 1000);
-    setInterval(fetchQuakes,      2 * 60 * 1000);
-    setInterval(fetchAlerts,      2 * 60 * 1000);
-    setInterval(fetchTurbulence,  2 * 60 * 1000);
-    setInterval(fetchAirQuality,  2 * 60 * 1000);
-    setInterval(fetchAircraft,        30 * 1000); // Traffic is real-time
-    setInterval(fetchShips,           30 * 1000); // Traffic is real-time
-    setInterval(fetchStations,    2 * 60 * 1000);
-    setInterval(fetchCurrents,    2 * 60 * 1000); // marine model updates slowly
-    setInterval(fetchTide,        2 * 60 * 1000);
+    setInterval(fetchWeather,     5 * 60 * 1000);
+    setInterval(fetchBuoys,       5 * 60 * 1000);
+    setInterval(fetchQuakes,      5 * 60 * 1000);
+    setInterval(fetchAlerts,      5 * 60 * 1000);
+    setInterval(fetchTurbulence,  5 * 60 * 1000);
+    setInterval(fetchAirQuality,  5 * 60 * 1000);
+    setInterval(fetchAircraft,        10 * 1000); // Traffic is real-time
+    setInterval(fetchShips,           10 * 1000); // Traffic is real-time
+    setInterval(fetchStations,    5 * 60 * 1000);
+    setInterval(fetchCurrents,    5 * 60 * 1000); // marine model updates slowly
+    setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
 

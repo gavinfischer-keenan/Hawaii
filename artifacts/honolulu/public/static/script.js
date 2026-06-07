@@ -59,7 +59,14 @@ var staticPoiLayer  = L.layerGroup().addTo(map);
 var radarLayerGroup = L.layerGroup();
 var currentLayer    = L.layerGroup();
 var windLayer       = L.layerGroup();
-var waveLayer       = L.layerGroup();
+var waveLayer       = L.tileLayer.wms('https://pae-paha.pacioos.hawaii.edu/thredds/wms/swan_oahu/SWAN_Oahu_Regional_Wave_Model_best.ncd', {
+    layers: 'hs',
+    format: 'image/png',
+    transparent: true,
+    opacity: 0.65,
+    colorscalerange: '0,2.5',
+    styles: 'boxfill/rainbow'
+});
 var buoyLayer       = L.layerGroup();
 var quakeLayer      = L.layerGroup();
 var lightningLayer  = L.layerGroup();
@@ -707,53 +714,7 @@ async function fetchWind() {
 }
 
 async function fetchWaves() {
-    try {
-        // Using the sample global vector array as a placeholder for OPeNDAP WW3 data
-        const r = await fetch('/static/wind-data.json');
-        if (!r.ok) throw new Error(r.status);
-        const data = await r.json();
-        
-        // MASK OUT LAND for waves
-        if (data.length === 2 && data[0].data && data[1].data && data[0].header) {
-            const h = data[0].header;
-            const nx = h.nx; const ny = h.ny;
-            const dx = h.dx; const dy = h.dy;
-            const la1 = h.la1; const lo1 = h.lo1;
-            
-            for (let j = 0; j < ny; j++) {
-                for (let i = 0; i < nx; i++) {
-                    const lat = la1 - j * dy;
-                    const lng = lo1 + i * dx;
-                    // Our lo1 might be 0 to 360, but Hawaii is -157. Convert if needed
-                    const adjLng = lng > 180 ? lng - 360 : lng;
-                    
-                    if (isOnLand(lat, adjLng)) {
-                        const idx = j * nx + i;
-                        data[0].data[idx] = null;
-                        data[1].data[idx] = null;
-                    }
-                }
-            }
-        }
-        
-        waveLayer.clearLayers();
-        const velocityLayer = L.velocityLayer({
-            displayValues: true,
-            displayOptions: {
-                velocityType: 'Significant Swell',
-                displayPosition: 'bottomleft',
-                displayEmptyString: 'No wave data'
-            },
-            data: data,
-            maxVelocity: 15,
-            velocityScale: 0.015, // Faster visual travel for swell
-            colorScale: ['#00008b', '#0000ff', '#00bfff', '#00fa9a', '#ffd700', '#ff00ff', '#ff0000'], // Heatmap colors
-            lineWidth: 5, // Thicker strokes for wave energy
-            particleMultiplier: 1 / 1800,
-            pane: 'wavePane'
-        });
-        velocityLayer.addTo(waveLayer);
-    } catch(e) { console.warn('Wave fetch:', e); }
+    // Replaced by PacIOOS SWAN WMS Layer
 }
 
 async function fetchBuoys() {
@@ -1493,11 +1454,11 @@ function updateLegend(type) {
     } else if (type === 'wave') {
         html = `
             <div>
-                <div style="font-weight:bold; font-size:11px; color:#4facfe; text-transform:uppercase; margin-bottom:4px;">SIGNIFICANT SWELL</div>
-                <div style="font-size:9.5px; color:#dfe6e9; margin-bottom:4px;"><b>Model: NOAA / WW3 Global</b></div>
-                <div style="font-size:9.5px; color:#b2bec3; line-height:1.3; margin-bottom:8px;">Particle trails show peak swell direction, color-coded by wave height (ft).</div>
-                <div style="height:6px; width:100%; border-radius:3px; background: linear-gradient(to right, #00008b, #0000ff, #00bfff, #00fa9a, #ffd700, #ff00ff, #ff0000);"></div>
-                <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>0</span><span>8</span><span>15+ ft</span></div>
+                <div style="font-weight:bold; font-size:11px; color:#4facfe; text-transform:uppercase; margin-bottom:4px;">SIGNIFICANT WAVE HEIGHT</div>
+                <div style="font-size:9.5px; color:#dfe6e9; margin-bottom:4px;"><b>Model: PacIOOS SWAN (Oahu)</b></div>
+                <div style="font-size:9.5px; color:#b2bec3; line-height:1.3; margin-bottom:8px;">High-resolution nearshore coastal dynamics.</div>
+                <div style="height:6px; width:100%; border-radius:3px; background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);"></div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>0</span><span>4.2</span><span>8.3+ ft</span></div>
             </div>
         `;
     } else if (type === 'roms') {
@@ -1897,7 +1858,7 @@ fetchStations();
 fetchCurrents();
 fetchTide();
 fetchWind();
-fetchWaves();
+// fetchWaves(); // Replaced with SWAN WMS layer
 fetch7DayForecast();
 
 Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()]).finally(() => {

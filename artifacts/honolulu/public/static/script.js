@@ -1730,7 +1730,6 @@ const uiStates = [
             const fb = document.getElementById('forecast-box');
             if (fb) fb.style.display = 'block';
             updateLegend('wind');
-            startBottomTrafficHUD('air');
         },
         onExit()  { 
             document.getElementById('main-dash').classList.remove('hud-hidden'); 
@@ -2125,6 +2124,7 @@ Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTu
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
+
 
 
 

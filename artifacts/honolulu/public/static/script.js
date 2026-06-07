@@ -2162,13 +2162,45 @@ Promise.race([
     setInterval(fetchCurrents,    5 * 60 * 1000); // marine model updates slowly
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
+
+// --- RASPBERRY PI HARDWARE DEGRADATION & KIOSK MANAGEMENT ---
+function initFPSMonitor() {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let lowFpsTicks = 0; // Consecutive seconds below threshold
+    
+    function measure() {
+        const now = performance.now();
+        frameCount++;
+        if (now - lastTime >= 1000) {
+            const fps = frameCount;
+            // If FPS is below 20 for 5 consecutive seconds, trigger low-perf mode
+            if (fps < 20) {
+                lowFpsTicks++;
+                if (lowFpsTicks >= 5 && !document.body.classList.contains('low-perf')) {
+                    console.warn('FPS dropped to ' + fps + ' for 5 seconds. Enabling low-performance mode (stripping backdrop-filters).');
+                    document.body.classList.add('low-perf');
+                }
+            } else {
+                lowFpsTicks = 0;
+            }
+            frameCount = 0;
+            lastTime = now;
+        }
+        requestAnimationFrame(measure);
+    }
+    requestAnimationFrame(measure);
+}
+
+function initDailyRefresh() {
+    // Schedule a hard reload every 24 hours to flush Chromium memory creeps
+    setTimeout(() => {
+        console.warn('Executing daily 24-hour Kiosk memory flush...');
+        window.location.reload();
+    }, 24 * 60 * 60 * 1000);
+}
+
+initFPSMonitor();
+initDailyRefresh();
 });
-
-
-
-
-
-
-
-
 

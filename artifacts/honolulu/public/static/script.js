@@ -1418,11 +1418,10 @@ function getTrafficItems() {
 
 function getWaikikiTrafficItems() {
     const items = [];
-    const b = L.latLngBounds([21.21, -157.88], [21.30, -157.70]);
 
     // Filter Ships
     (liveData.ships || []).forEach(v => {
-        if (v.lat != null && v.lng != null && b.contains([v.lat, v.lng])) {
+        if (v.lat != null && v.lng != null) {
             items.push({
                 icon: '🚢', name: v.name,
                 detail: v.sog != null ? `${v.sog.toFixed(1)} kt` : '--',
@@ -1436,7 +1435,7 @@ function getWaikikiTrafficItems() {
     (liveData.aircraft || []).forEach(a => {
         // Aircraft from API have .lon instead of .lng
         const lng = a.lon != null ? a.lon : a.lng;
-        if (a.lat != null && lng != null && b.contains([a.lat, lng])) {
+        if (a.lat != null && lng != null) {
             let detail = `Reg: ${a.registration || 'UNK'} Type: ${a.acType || 'UNK'}`;
             if (a.origin && a.dest) detail += `\nRoute: ${a.origin} -> ${a.dest}`;
             items.push({
@@ -1626,15 +1625,11 @@ function updateLegend(type) {
 }
 
 const uiStates = [
-    // ── 0: METEOROLOGICAL — STATIONS + DERIVED WIND FIELD ─────────────
-    // One unified weather view: NWS Doppler radar backdrop, a uniform box at
-    // every reporting station (Oahu + neighbour islands), and a derived wind
-    // flow field whose arrows curl around the islands. No bottom-left data
-    // panel here — the map itself is the readout.
+    // 🟢 0: METEOROLOGICAL – STATIONS + DERIVED WIND FIELD 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
     {
-        title: "METEOROLOGICAL", sub: "NWS RADAR · WIND VECTOR · STATIONS", duration: 11500,
-        layersOn:  [radarLayerGroup, stationLayer, windLayer, dynamicAlertMarkers],
-        layersOff: [airLayer, shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
+        title: "METEOROLOGICAL", sub: "NWS RADAR · WIND VECTOR · STATIONS", duration: 17250,
+        layersOn:  [radarLayerGroup, stationLayer, windLayer, dynamicAlertMarkers, airLayer],
+        layersOff: [shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
         renderStatic: () => '',
         onEnter() { 
             document.getElementById('main-dash').classList.add('hud-hidden'); 
@@ -1649,12 +1644,12 @@ const uiStates = [
             updateLegend('none');
         }
     },
-    // ── 1: SURF & OCEAN — combined surf cards + buoy HUDs ────────────
+    // 🟢 1: SURF & OCEAN – combined surf cards + buoy HUDs 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
     {
         id: 'state-surf',
-        title: "SURF & OCEAN", sub: "NDBC · WAVE + BUOY + CURRENTS", duration: 9000,
-        layersOn:  [buoyLayer, surfLayer, currentLayer, tideLayer, dynamicAlertMarkers, waveLayer],
-        layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, quakeLayer, lightningLayer, denseDepthLayer, windLayer],
+        title: "SURF & OCEAN", sub: "NDBC · WAVE + BUOY + CURRENTS", duration: 13500,
+        layersOn:  [buoyLayer, surfLayer, currentLayer, tideLayer, dynamicAlertMarkers, waveLayer, shipLayer],
+        layersOff: [radarLayerGroup, aqiLayer, airLayer, quakeLayer, lightningLayer, denseDepthLayer, windLayer],
         renderStatic() {
             const buoys  = liveData.buoys || [];
             const active = buoys.filter(b => !b.error && b.waveHeight != null);
@@ -1722,27 +1717,10 @@ const uiStates = [
         onEnter() { setSurfMode('large'); updateLegend('wave'); },   // big boxed cards + declutter
         onExit()  { setSurfMode('small'); updateLegend('none'); }    // compact pins everywhere else
     },
-
-    // ── 2: TRAFFIC — COMBINED (WIDE) ──────────────────────────────────
-    {
-        title: "TRAFFIC — COMBINED", sub: "FLIGHT & VESSEL TRACKING", perPageMs: 3500,
-        layersOn:  [airLayer, shipLayer, airportLayer],
-        layersOff: [radarLayerGroup, aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
-        getItems: getTrafficItems, renderItem: renderTrafficItem
     },
-    // ── 3: TRAFFIC — COMBINED (harbor approach zoom-in) ───────────────
+    // 🟢 2: TRAFFIC – WAIKIKI & DIAMOND HEAD 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
     {
-        title: "TRAFFIC — COMBINED", sub: "HONOLULU HARBOR APPROACH", perPageMs: 3500,
-        view: 'harbor',
-        layersOn:  [airLayer, shipLayer, denseDepthLayer, airportLayer, radarLayerGroup],
-        layersOff: [aqiLayer, buoyLayer, quakeLayer, lightningLayer],
-        getItems: getTrafficItems, renderItem: renderTrafficItem,
-        pageSize: 8,
-        holdExtraMs: 3000,   // linger on the last page so the zoom is appreciated
-    },
-    // ── 4: TRAFFIC — WAIKIKI & DIAMOND HEAD ───────────────
-    {
-        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3500, pageSize: 3, holdExtraMs: 3000,
+        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3850, pageSize: 3, holdExtraMs: 3300,
         view: 'waikiki',
         layersOn:  [airLayer, shipLayer, superDenseDepthLayer, airportLayer, radarLayerGroup],
         layersOff: [aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
@@ -1899,6 +1877,7 @@ let currentStateIndex = 0;
 let currentPage       = 0;
 let _pageTimer        = null;
 let _prevStateIndex   = -1;
+let lastView          = 'oahu';
 
 function transitionState() {
     if (_pageTimer) clearTimeout(_pageTimer);
@@ -1934,10 +1913,12 @@ function transitionState() {
     });
 
     // Handle view changes (Oahu vs Hawaii vs Harbor)
-    const prevView = prevState?.view || 'oahu';
     const currView = state.view || 'oahu';
+    if (currView !== 'waikiki') {
+        document.getElementById('map').classList.remove('waikiki-zoom');
+    }
 
-    if (prevView !== currView || _prevStateIndex === -1) {
+    if (currView !== lastView) {
         // Unlock bounds so we can fly freely
         map.setMaxBounds(null);
         map.setMinZoom(0);
@@ -1959,7 +1940,9 @@ function transitionState() {
                 }
             }, 1900);
         } else if (currView === 'waikiki') {
-            map.flyToBounds([[21.23, -157.82], [21.285, -157.72]], { animate: true, duration: 1.8 });
+            document.getElementById('map').classList.add('waikiki-zoom');
+            // Expanded by 5% from previous bounding box
+            map.flyToBounds([[21.2286, -157.8225], [21.2863, -157.7175]], { animate: true, duration: 1.8 });
             setTimeout(() => {
                 if (uiStates[currentStateIndex].view === 'waikiki') {
                     map.setMaxBounds(bounds);
@@ -2047,4 +2030,5 @@ Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTu
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
+
 

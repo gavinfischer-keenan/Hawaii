@@ -499,7 +499,15 @@ body, html {
     color: #ffd32a;
 }
 
-/* ── BUOY HUD BOXES ───────────────────────────────────────────────── */
+/* 🟢 WAIKIKI ZOOM OVERRIDES 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢 */
+.waikiki-zoom .traffic-label {
+    font-size: 16px;
+    font-weight: 800;
+    text-shadow: 0 0 10px currentColor, -1px -1px 3px #000, 1px 1px 3px #000;
+    z-index: 1000 !important;
+}
+
+/* 🟢 BUOY HUD BOXES 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢 */
 .buoy-box {
     background: rgba(10, 14, 26, 0.88);
     border: 1px solid #0abde3;

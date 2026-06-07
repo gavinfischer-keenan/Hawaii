@@ -1631,6 +1631,30 @@ function hideHNLBox() {
     if (box) box.style.display = 'none';
 }
 
+function updateHNLBoxMet() {
+    const box = document.getElementById('hnl-status-box-met');
+    if (!box) return;
+    const apt = liveData.airport || { status: 'LOADING...', color: '#a4b0be', details: 'Awaiting data...' };
+    box.style.display = 'flex';
+    box.style.borderColor = apt.color;
+    box.innerHTML = `
+        <div style="font-weight:bold; font-size:18px; color:${apt.color}; text-transform:uppercase; margin-bottom:8px; text-shadow: 0 0 4px ${apt.color};">
+            ✈ HNL
+        </div>
+        <div style="font-weight:bold; font-size:14px; color:${apt.color}; text-transform:uppercase; margin-bottom:8px; text-shadow: 0 0 4px ${apt.color};">
+            ${apt.status}
+        </div>
+        <div style="font-size:11px; color:#dfe6e9; line-height:1.3; margin-top: auto;">
+            ${apt.details}
+        </div>
+    `;
+}
+
+function hideHNLBoxMet() {
+    const box = document.getElementById('hnl-status-box-met');
+    if (box) box.style.display = 'none';
+}
+
 function updateLegend(type) {
     let el = document.getElementById('particle-legend');
     if (!el) {
@@ -1742,10 +1766,12 @@ const uiStates = [
         layersOff: [shipLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
         renderStatic: () => '',
         onEnter() { 
+            fetchAirport();
             document.getElementById('main-dash').classList.add('hud-hidden'); 
             const fb = document.getElementById('forecast-box');
             if (fb) fb.style.display = 'block';
             updateLegend('wind');
+            updateHNLBoxMet();
         },
         onExit()  { 
             document.getElementById('main-dash').classList.remove('hud-hidden'); 
@@ -1753,6 +1779,7 @@ const uiStates = [
             if (fb) fb.style.display = 'none';
             updateLegend('none');
             stopBottomTrafficHUD();
+            hideHNLBoxMet();
         }
     },
     // 🟢 1: SURF & OCEAN – combined surf cards + buoy HUDs 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢

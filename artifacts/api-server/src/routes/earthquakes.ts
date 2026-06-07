@@ -15,7 +15,7 @@ router.get("/earthquakes", async (req, res) => {
     url.searchParams.set("limit", "20");
     url.searchParams.set("orderby", "time");
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000),
       headers: { "User-Agent": "HonoluluCommandCenter/1.0" },
     });
 
@@ -54,3 +54,4 @@ router.get("/earthquakes", async (req, res) => {
 });
 
 export default router;
+

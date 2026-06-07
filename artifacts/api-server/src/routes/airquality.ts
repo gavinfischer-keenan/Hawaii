@@ -54,7 +54,7 @@ router.get("/airquality", async (req, res) => {
       `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}` +
       `&longitude=${lngs}&current=us_aqi,pm2_5,pm10,ozone&timezone=Pacific%2FHonolulu`;
 
-    const r = await fetch(url, {
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000),
       headers: { "User-Agent": "HonoluluCommandCenter/1.0" },
     });
     if (!r.ok) throw new Error(`Open-Meteo ${r.status}`);
@@ -89,3 +89,4 @@ router.get("/airquality", async (req, res) => {
 });
 
 export default router;
+

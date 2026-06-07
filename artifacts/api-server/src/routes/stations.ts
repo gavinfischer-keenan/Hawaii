@@ -49,8 +49,7 @@ router.get("/stations", async (req, res) => {
           // null placeholders (QC flag "Z"), so pull the recent list and pick
           // the newest entry that actually has a temperature.
           const r = await fetch(
-            `https://api.weather.gov/stations/${s.id}/observations?limit=8`,
-            { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) },
+            `https://api.weather.gov/stations/${s.id}/observations?limit=8`, { signal: AbortSignal.timeout(8000), headers: { "User-Agent": UA } },
           );
           if (!r.ok) throw new Error(`NWS ${s.id} ${r.status}`);
           const json = (await r.json()) as { features: Array<{ properties: ObsProps }> };
@@ -86,3 +85,5 @@ router.get("/stations", async (req, res) => {
 });
 
 export default router;
+
+

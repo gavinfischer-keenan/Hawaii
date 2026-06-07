@@ -34,7 +34,7 @@ router.get("/weather", async (req, res) => {
     };
 
     // Step 2: get the actual forecast
-    const forecastRes = await fetch(pointJson.properties.forecastHourly, {
+    const forecastRes = await fetch(pointJson.properties.forecastHourly, { signal: AbortSignal.timeout(8000),
       headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" },
     });
 
@@ -86,3 +86,5 @@ router.get("/weather", async (req, res) => {
 });
 
 export default router;
+
+

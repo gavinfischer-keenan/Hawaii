@@ -24,9 +24,7 @@ const MAX_LOOKUPS_PER_REFRESH = 12;
 
 async function lookupRoute(callsign: string): Promise<RouteInfo> {
   try {
-    const r = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(callsign)}`, {
-      headers: { "User-Agent": "HonoluluCommandCenter/1.0" },
-      signal: AbortSignal.timeout(5000),
+    const r = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(callsign)}`, { headers: { "User-Agent": "HonoluluCommandCenter/1.0" }, signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) return { origin: null, dest: null };
     const j = (await r.json()) as {
@@ -65,9 +63,7 @@ router.get("/aircraft", async (req, res) => {
     }
 
     const url = `https://opendata.adsb.fi/api/v2/lat/${CENTER.lat}/lon/${CENTER.lon}/dist/${RADIUS_NM}`;
-    const r = await fetch(url, {
-      headers: { "User-Agent": "HonoluluCommandCenter/1.0" },
-      signal: AbortSignal.timeout(12000),
+    const r = await fetch(url, { headers: { "User-Agent": "HonoluluCommandCenter/1.0" }, signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) throw new Error(`adsb.fi ${r.status}`);
 
@@ -129,3 +125,5 @@ router.get("/aircraft", async (req, res) => {
 });
 
 export default router;
+
+

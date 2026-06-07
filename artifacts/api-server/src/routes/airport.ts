@@ -5,7 +5,7 @@ const router = Router();
 
 router.get("/airport", async (req: Request, res: Response) => {
     try {
-        const response = await fetch("https://nasstatus.faa.gov/api/airport-events", {
+        const response = await fetch("https://nasstatus.faa.gov/api/airport-events", { signal: AbortSignal.timeout(8000),
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
@@ -66,3 +66,4 @@ router.get("/airport", async (req: Request, res: Response) => {
 });
 
 export default router;
+

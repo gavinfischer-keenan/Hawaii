@@ -14,7 +14,7 @@ router.get("/turbulence", async (req, res) => {
 
     // Fetch FAA/AWC Aviation Weather polygons for SIGMETs and AIRMETs
     // We fetch hazard=turb to get turbulence boxes
-    const r = await fetch("https://aviationweather.gov/api/data/polygon?format=geojson&hazard=turb");
+    const r = await fetch("https://aviationweather.gov/api/data/polygon?format=geojson&hazard=turb", { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error(`AWC Turbulence ${r.status}`);
 
     const json = await r.json() as any;
@@ -44,3 +44,4 @@ router.get("/turbulence", async (req, res) => {
 });
 
 export default router;
+

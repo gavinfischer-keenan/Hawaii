@@ -14,9 +14,7 @@ const BUOYS = [
 
 async function fetchBuoy(id: string): Promise<Record<string, string | number | null>> {
   const url = `https://www.ndbc.noaa.gov/data/realtime2/${id}.txt`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": "HonoluluCommandCenter/1.0" },
-    signal: AbortSignal.timeout(8000),
+  const res = await fetch(url, { headers: { "User-Agent": "HonoluluCommandCenter/1.0" }, signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) throw new Error(`NDBC ${id} responded ${res.status}`);
@@ -74,3 +72,5 @@ router.get("/buoys", async (req, res) => {
 });
 
 export default router;
+
+

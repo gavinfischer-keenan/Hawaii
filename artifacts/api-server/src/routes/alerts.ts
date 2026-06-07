@@ -14,10 +14,9 @@ router.get("/alerts", async (req, res) => {
 
     // Fetch active NWS alerts for Hawaii (land) and PH (coastal marine)
     const [rHI, rPH] = await Promise.all([
-      fetch("https://api.weather.gov/alerts/active?area=HI", {
-        headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" },
+      fetch("https://api.weather.gov/alerts/active?area=HI", { headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" },
       }),
-      fetch("https://api.weather.gov/alerts/active?area=PH", {
+      fetch("https://api.weather.gov/alerts/active?area=PH", { signal: AbortSignal.timeout(8000),
         headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" },
       })
     ]);
@@ -51,3 +50,5 @@ router.get("/alerts", async (req, res) => {
 });
 
 export default router;
+
+

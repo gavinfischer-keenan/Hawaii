@@ -43,7 +43,7 @@ router.get("/wind", async (req, res) => {
       `&current=wind_speed_10m,wind_direction_10m` +
       `&wind_speed_unit=kn&timezone=Pacific/Honolulu`;
 
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error(`Open-Meteo ${r.status}`);
 
     const json = (await r.json()) as Array<{
@@ -80,3 +80,5 @@ router.get("/wind", async (req, res) => {
 });
 
 export default router;
+
+

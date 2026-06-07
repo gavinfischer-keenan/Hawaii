@@ -661,7 +661,7 @@ function updateSurfLabels(buoys) {
 var liveData = { weather: null, buoys: null, quakes: null, alerts: null, turbulence: null, airquality: null, aircraft: [], ships: [], shipsConnected: false, stations: [], currents: null, tide: null };
 
 let trafficHistory = {};
-const BREADCRUMB_LIMIT = 12;
+const BREADCRUMB_LIMIT = 7; // ~1 minute at 10-second intervals
 
 function recordTrafficBreadcrumb(id, lat, lng) {
     if (!id || lat == null || lng == null) return;
@@ -673,11 +673,20 @@ function recordTrafficBreadcrumb(id, lat, lng) {
 }
 
 function drawBreadcrumbs(id, layer, color) {
-    if (!trafficHistory[id] || trafficHistory[id].length < 2) return;
-    trafficHistory[id].forEach((pt, i) => {
-        const opacity = (i + 1) / trafficHistory[id].length * 0.8;
-        L.circleMarker(pt, { radius: 2, color: color, fillOpacity: opacity, opacity: opacity, weight: 1, pane: 'trafficPane' }).addTo(layer);
-    });
+    const history = trafficHistory[id];
+    if (!history || history.length < 2) return;
+    
+    // Draw fading line segments leading up to the vessel
+    for (let i = 0; i < history.length - 1; i++) {
+        // Opacity increases as it gets closer to the current position
+        const opacity = ((i + 1) / history.length) * 0.9;
+        L.polyline([history[i], history[i+1]], {
+            color: color,
+            weight: 4, // Thicker line for visibility
+            opacity: opacity,
+            pane: 'trafficPane'
+        }).addTo(layer);
+    }
 }
 
 const buoyCoords = {

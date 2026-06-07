@@ -1127,10 +1127,10 @@ async function fetch7DayForecast() {
             const p = periods[i];
             // Show today's remainder, and then daytime for the next 6 days
             if (p.isDaytime || i === 0) { 
-                html += `<div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
-                    <div style="font-weight: bold; width: 90px; color: #dfe6e9;">${p.name.replace('This Afternoon', 'Today').replace('Tonight', 'Tonight')}</div>
-                    <div style="flex: 1; margin: 0 10px; color: #b2bec3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${p.shortForecast}">${p.shortForecast}</div>
-                    <div style="font-weight: bold; color: ${p.isDaytime ? '#ff9f43' : '#74b9ff'};">${p.temperature}°</div>
+                html += `<div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 6px 0;">
+                    <div style="font-weight: bold; width: 90px; color: #dfe6e9; flex-shrink: 0;">${p.name.replace('This Afternoon', 'Today').replace('Tonight', 'Tonight')}</div>
+                    <div style="flex: 1; margin: 0 10px; color: #b2bec3; line-height: 1.3;" title="${p.shortForecast}">${p.shortForecast}</div>
+                    <div style="font-weight: bold; color: ${p.isDaytime ? '#ff9f43' : '#74b9ff'}; flex-shrink: 0;">${p.temperature}°</div>
                 </div>`;
                 dayCount++;
             }
@@ -2163,6 +2163,7 @@ Promise.race([
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
 });
+
 
 
 

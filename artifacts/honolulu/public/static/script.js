@@ -1478,7 +1478,7 @@ function updateLegend(type) {
 
     // Position dynamically so it stacks cleanly above the hazard box when in roms/hazard view
     if (type === 'roms') {
-        el.style.bottom = '175px';
+        el.style.bottom = '220px';
     } else {
         el.style.bottom = '20px';
     }

@@ -1156,7 +1156,7 @@ function getAircraftClass(acType, altFt, speedKt) {
         if ((altFt != null && altFt < 3000) || (speedKt != null && speedKt < 120 && altFt < 5000)) return 'helo';
         return 'air';
     }
-    const t = acType.toUpperCase();
+    const t = String(acType).toUpperCase();
     if (t.match(/^(R44|R66|H60|UH6|AH6|AS3|EC1|B06|B40|A10|AW1|MD5|S76|S92)/)) return 'helo';
     if (t.match(/^(C1|C2|P2|PA|SR|BE|PC|TBM|M20|DA)/)) return 'small';
     return 'air';
@@ -1981,6 +1981,7 @@ let _prevStateIndex   = -1;
 let lastView          = 'oahu';
 
 function transitionState() {
+    try {
     if (_pageTimer) clearTimeout(_pageTimer);
 
     const prevState = _prevStateIndex >= 0 ? uiStates[_prevStateIndex] : null;
@@ -2101,6 +2102,7 @@ function transitionState() {
             transitionState();
         }, state.duration ?? 5000);
     }
+    } catch (e) { document.getElementById('tab-title').innerText = 'ERROR: ' + e.message; console.error(e); }
 }
 
 // =====================================================================

@@ -20,7 +20,7 @@ router.get("/weather", async (req, res) => {
     // Step 1: get the forecast office + grid for this location
     const pointRes = await fetch(
       `https://api.weather.gov/points/${LAT},${LNG}`,
-      { headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" } },
+      { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "HonoluluCommandCenter/1.0 (contact@example.com)" } },
     );
 
     if (!pointRes.ok) throw new Error(`NWS points ${pointRes.status}`);

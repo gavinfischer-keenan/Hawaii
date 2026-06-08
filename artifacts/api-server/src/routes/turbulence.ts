@@ -13,26 +13,32 @@ router.get("/turbulence", async (req, res) => {
     }
 
     // Fetch FAA/AWC Aviation Weather polygons for SIGMETs and AIRMETs
-    // We fetch hazard=turb to get turbulence boxes
-    const r = await fetch("https://aviationweather.gov/api/data/polygon?format=geojson&hazard=turb", { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error(`AWC Turbulence ${r.status}`);
+    const [rAirmet, rSigmet] = await Promise.all([
+      fetch("https://aviationweather.gov/api/data/airmet?format=geojson", { signal: AbortSignal.timeout(8000) }).catch(() => null),
+      fetch("https://aviationweather.gov/api/data/sigmet?format=geojson", { signal: AbortSignal.timeout(8000) }).catch(() => null)
+    ]);
 
-    const json = await r.json() as any;
     const turbulence = [];
-
-    if (json.features) {
+    const processFeatures = async (r: Response | null) => {
+      if (!r || !r.ok) return;
+      const json = await r.json() as any;
+      if (!json.features) return;
       for (const f of json.features) {
-        // Filter for Hawaii region (rough bounds)
-        // AWC polygon coords can be tricky, but we just pass the geometry
-        turbulence.push({
-          hazard: f.properties?.hazard || "Turbulence",
-          severity: f.properties?.severity || "Mod",
-          minAlt: f.properties?.minAlt || 0,
-          maxAlt: f.properties?.maxAlt || 0,
-          geometry: f.geometry
-        });
+        const hazard = f.properties?.hazard || "";
+        if (hazard.includes("TURB") || f.properties?.airmetType?.includes("TANGO")) {
+          turbulence.push({
+            hazard: f.properties?.hazard || "Turbulence",
+            severity: f.properties?.severity || "Mod",
+            minAlt: f.properties?.minAlt || f.properties?.base || 0,
+            maxAlt: f.properties?.maxAlt || f.properties?.top || 0,
+            geometry: f.geometry
+          });
+        }
       }
-    }
+    };
+
+    await processFeatures(rAirmet);
+    await processFeatures(rSigmet);
 
     const data = { turbulence, fetchedAt: Date.now() };
     cache = { data, expiresAt: Date.now() + CACHE_MS };

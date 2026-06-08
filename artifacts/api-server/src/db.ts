@@ -34,6 +34,25 @@ function saveDatabase() {
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = setTimeout(() => {
     try {
+      const now = Date.now();
+      const cutoff = now - 30 * 24 * 60 * 60 * 1000; // 30 days
+      
+      // Prune inactive vessels without custom images
+      for (const mmsi in db.vessels) {
+        const v = db.vessels[mmsi];
+        if (v.last_seen < cutoff && !v.image_url) {
+          delete db.vessels[mmsi];
+        }
+      }
+      
+      // Prune inactive aircraft without custom images
+      for (const icao in db.aircraft) {
+        const a = db.aircraft[icao];
+        if (a.last_seen < cutoff && !a.image_url) {
+          delete db.aircraft[icao];
+        }
+      }
+
       fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
     } catch (err) {
       logger.error({ err }, 'Failed to save database.json');

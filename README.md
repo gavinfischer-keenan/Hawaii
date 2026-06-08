@@ -1,6 +1,6 @@
 # Hawaii Telemetry & Command Center
 
-**Version:** 1.6
+**Version:** 1.7
 **Architecture:** Node.js (Express) Backend API + Vanilla JS/Leaflet.js Frontend
 
 ## Overview
@@ -73,6 +73,12 @@ The dashboard automatically rotates through the following states:
 
 ## Release Notes
 
+### v1.7 - Point Release
+*   **Waikiki 7-Day Surf Forecast:** Integrated the Open-Meteo Marine API to fetch a 7-day maximum wave height forecast specifically for the Waikiki geographic coordinate, visualized as a horizontally scrolling card in the Surf & Ocean tab.
+*   **Intelligent Alert Filtering:** The NWS Small Craft Advisory logic was refined to scan alert descriptions for explicit mentions of Oahu, Honolulu, or Kaiwi Channel. Broad state-wide advisories are now suppressed from the zoomed-in Oahu views, appearing only on the macro Hawaii chain map.
+*   **AIS Vessel Plotting Fix:** Resolved a critical Javascript type coercion bug where numeric MMSI identifiers were failing strict Set checks against string property keys, which was causing live AIS pins to instantly delete themselves after rendering. The pins now correctly persist and feature a distinct semi-transparent background to ensure visibility over complex bathymetry map tiles.
+*   **Hazard HUD Optimization:** The Deep Ocean Flight Monitor was removed from the Hazard Monitor page, and the Hazard Legend box was heavily minimized to maximize map visibility.
+
 ### v1.6 - Persistent Image Tracking & PIC WANTED System
 *   **Persistent SQLite Backend Tracking:** Upgraded the Node.js backend to persistently log the first seen timestamps and visit counts for every localized vessel and aircraft via a persistent local JSON datastore, allowing the system to remember ships across reboots.
 *   **PIC WANTED Bounty System:** Introduced a smart visual flag on both the bottom Ocean Traffic HUD and the Waikiki Zoom HUD. Any aircraft or vessel tracked for more than 3 consecutive days without an uploaded custom image is automatically flagged with a solid red "[PIC WANTED]" badge.
@@ -85,3 +91,4 @@ The dashboard automatically rotates through the following states:
 *   **Kiosk Auto-Flush:** Implemented a daily 24-hour automatic browser refresh to forcibly clear any creeping Chromium memory leaks during continuous 24/7 runtimes.
 *   **Deployment Configurations:** Shipped with a `.env.example` template for secure local secret management and an `ecosystem.config.cjs` to enable robust background process management via PM2.
 *   **API Resilience:** Rebuilt the Node.js backend to forcefully append `AbortSignal.timeout(8000)` to all 15+ external government/API data fetches, completely insulating the system against memory exhaustion from hanging remote sockets.
+

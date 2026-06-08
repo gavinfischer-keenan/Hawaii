@@ -400,6 +400,10 @@ body, html {
     overflow: hidden;
 }
 
+#overlay-container.state-traffic #panel-content {
+    max-height: 380px;
+}
+
 #overlay-container.state-surf #panel-content {
     max-height: none;
     overflow: visible;
@@ -626,17 +630,17 @@ body, html {
     background: rgba(10, 20, 30, 0.85);
     border-radius: 8px;
     border-left: 4px solid #fff;
-    margin-bottom: 8px;
-    padding: 10px;
+    margin-bottom: 6px;
+    padding: 6px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    min-height: 80px;
+    min-height: 52px;
 }
 .traffic-card-left {
-    width: 80px;
-    height: 80px;
+    width: 52px;
+    height: 52px;
     flex-shrink: 0;
-    margin-right: 12px;
-    border-radius: 6px;
+    margin-right: 10px;
+    border-radius: 4px;
     overflow: hidden;
     background: rgba(255,255,255,0.05);
     display: flex;
@@ -659,25 +663,26 @@ body, html {
     justify-content: space-between;
 }
 .tc-title {
-    font-size: 14px;
+    font-size: 11.5px;
     font-weight: bold;
     color: #fff;
 }
 .tc-sub {
-    font-size: 12px;
+    font-size: 10px;
     color: #b2bec3;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 .tc-detail {
-    font-size: 11px;
+    font-size: 9px;
     color: #81ecec;
-    margin-top: 4px;
+    margin-top: 2px;
+    line-height: 1.2;
 }
 .tc-visits {
-    font-size: 10px;
+    font-size: 8px;
     color: #fdcb6e;
     font-style: italic;
-    margin-top: 4px;
+    margin-top: 2px;
     text-align: right;
 }
 

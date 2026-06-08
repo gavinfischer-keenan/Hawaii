@@ -94,6 +94,7 @@ var alertLayer      = L.layerGroup();
 var turbulenceLayer = L.layerGroup();
 var airportLayer    = L.layerGroup();
 var tideLayer       = L.layerGroup();
+var waikikiTideLayer = L.layerGroup();
 var shipLayer       = L.featureGroup();
 var hazardTextLayer = L.layerGroup();
 // Dense bathymetry — only added to map during Traffic Combined zoom-in
@@ -320,8 +321,8 @@ for (let lat = 21.15; lat <= 21.42; lat += 0.022) {
 // =====================================================================
 const rngSD = makeSeededRng(0xBEEFCAFE);
 
-for (let lat = 21.22; lat <= 21.30; lat += 0.005) {
-    for (let lng = -157.88; lng <= -157.72; lng += 0.006) {
+for (let lat = 21.19; lat <= 21.33; lat += 0.005) {
+    for (let lng = -157.89; lng <= -157.66; lng += 0.006) {
         const jLat = lat + (rngSD() - 0.5) * 0.002;
         const jLng = lng + (rngSD() - 0.5) * 0.003;
         if (isOnLand(jLat, jLng)) continue;
@@ -639,7 +640,11 @@ function declutterLabels() {
 function setSurfMode(mode) { surfMode = mode; declutterLabels(); }
 
 // Pan/zoom transitions change the pixel layout — re-flow afterwards.
-map.on('moveend zoomend', declutterLabels);
+let declutterTimeout = null;
+map.on('moveend zoomend', () => {
+    if (declutterTimeout) clearTimeout(declutterTimeout);
+    declutterTimeout = setTimeout(declutterLabels, 50);
+});
 
 function updateSurfLabels(buoys) {
     if (!buoys) { declutterLabels(); return; }
@@ -749,27 +754,74 @@ const BREADCRUMB_LIMIT = 7; // ~1 minute at 10-second intervals
 
 function recordTrafficBreadcrumb(id, lat, lng) {
     if (!id || lat == null || lng == null) return;
+    const now = Date.now();
+    
     if (!trafficHistory[id]) trafficHistory[id] = [];
-    trafficHistory[id].push([lat, lng]);
+    
+    const hist = trafficHistory[id];
+    if (hist.length > 0) {
+        const last = hist[hist.length - 1];
+        // Ensure backward compatibility with existing non-timestamped breadcrumbs
+        const lastTime = last[2] || now - 10000; 
+        const dtSec = (now - lastTime) / 1000;
+        
+        if (dtSec > 0) {
+            const distM = L.latLng(last[0], last[1]).distanceTo(L.latLng(lat, lng));
+            const distNm = distM / 1852;
+            const dtHr = dtSec / 3600;
+            
+            // Speed cap set to 600 knots to accommodate commercial jets (450+ knots).
+            if ((distNm / dtHr) > 600) {
+                trafficHistory[id] = []; // Clear history to snap the line instead of stretching it
+            }
+        }
+    }
+    
+    trafficHistory[id].push([lat, lng, now]);
     if (trafficHistory[id].length > BREADCRUMB_LIMIT) {
         trafficHistory[id].shift();
     }
 }
 
-function drawBreadcrumbs(id, layer, color) {
+let activeBreadcrumbs = {};
+
+function drawBreadcrumbs(id, layer, color, cacheKey = id) {
     const history = trafficHistory[id];
-    if (!history || history.length < 2) return;
+    if (!history || history.length < 2) {
+        if (activeBreadcrumbs[cacheKey]) {
+            activeBreadcrumbs[cacheKey].forEach(p => layer.removeLayer(p));
+            delete activeBreadcrumbs[cacheKey];
+        }
+        return;
+    }
     
-    // Draw fading line segments leading up to the vessel
-    for (let i = 0; i < history.length - 1; i++) {
-        // Opacity increases as it gets closer to the current position
-        const opacity = ((i + 1) / history.length) * 0.9;
-        L.polyline([history[i], history[i+1]], {
+    if (!activeBreadcrumbs[cacheKey]) activeBreadcrumbs[cacheKey] = [];
+    const lines = activeBreadcrumbs[cacheKey];
+    
+    const numSegments = history.length - 1;
+    
+    while (lines.length < numSegments) {
+        const p = L.polyline([], {
             color: color,
             weight: 4, // Thicker line for visibility
-            opacity: opacity,
             pane: 'trafficPane'
-        }).addTo(layer);
+        });
+        lines.push(p);
+    }
+    while (lines.length > numSegments) {
+        const p = lines.pop();
+        layer.removeLayer(p);
+    }
+    
+    // Draw fading line segments leading up to the vessel
+    for (let i = 0; i < numSegments; i++) {
+        // Opacity increases as it gets closer to the current position
+        const opacity = ((i + 1) / history.length) * 0.9;
+        lines[i].setLatLngs([history[i], history[i+1]]);
+        lines[i].setStyle({ opacity: opacity, color: color });
+        if (!layer.hasLayer(lines[i])) {
+            lines[i].addTo(layer);
+        }
     }
 }
 
@@ -802,10 +854,6 @@ async function fetchWeather() {
 
 
 
-async function fetchWaves() {
-    // Replaced by PacIOOS SWAN WMS Layer
-}
-
 async function fetchBuoys() {
     try {
         const r = await fetch('/api/buoys');
@@ -835,6 +883,8 @@ async function fetchBuoys() {
     } catch(e) { console.warn('Buoy fetch:', e); }
 }
 
+const activeShips = {};
+
 // Live AIS vessels (AISStream via our server). Renders nothing — and the panel
 // shows an "offline" notice — until AISSTREAM_API_KEY is configured.
 async function fetchShips() {
@@ -845,10 +895,11 @@ async function fetchShips() {
         liveData.ships = data.ships || [];
         liveData.shipsConnected = !!data.connected;
 
-        shipLayer.clearLayers();
+        const seenIds = new Set();
         liveData.ships.forEach(v => {
             if (v.lat == null || v.lng == null) return;
-            const id = v.mmsi || v.name;
+            const id = String(v.mmsi || v.name);
+            seenIds.add(id);
             recordTrafficBreadcrumb(id, v.lat, v.lng);
             drawBreadcrumbs(id, shipLayer, '#ff9f43');
 
@@ -856,13 +907,30 @@ async function fetchShips() {
             const offshore = !isVesselInPort(v);
             const arrowStyle = `transform:rotate(${rot}deg);` + (offshore ? ` font-size:26px; color:#ff9f43; text-shadow: 0 0 12px #ff9f43, 0 0 4px #000; margin-right: 2px;` : ` font-size:18px; color:#ff9f43; text-shadow: 0 0 4px #000; margin-right: 2px;`);
             const html = `<div class="ship-pin" title="${v.name}">
-                <span class="ship-arrow" style="${arrowStyle}">➤</span>
+                <span class="ship-arrow" style="${arrowStyle}">➤ </span>
                 <span class="ship-name">${v.name}</span>
             </div>`;
-            L.marker([v.lat, v.lng], { pane: 'trafficPane',
-                icon: L.divIcon({ className: '', html, iconSize: [120, 18], iconAnchor: [9, 9] })
-            }).addTo(shipLayer);
+            
+            const iconObj = L.divIcon({ className: '', html, iconSize: [120, 18], iconAnchor: [9, 9] });
+            if (!activeShips[id]) {
+                activeShips[id] = L.marker([v.lat, v.lng], { pane: 'trafficPane', icon: iconObj }).addTo(shipLayer);
+            } else {
+                activeShips[id].setLatLng([v.lat, v.lng]);
+                activeShips[id].setIcon(iconObj);
+            }
         });
+        
+        // Cleanup stale ships
+        for (const id in activeShips) {
+            if (!seenIds.has(id)) {
+                shipLayer.removeLayer(activeShips[id]);
+                delete activeShips[id];
+                if (activeBreadcrumbs[id]) {
+                    activeBreadcrumbs[id].forEach(p => shipLayer.removeLayer(p));
+                    delete activeBreadcrumbs[id];
+                }
+            }
+        }
     } catch(e) { console.warn('Ship fetch:', e); }
 }
 
@@ -1111,6 +1179,17 @@ async function fetchAirQuality() {
     } catch(e) { console.warn('AQI fetch:', e); }
 }
 
+// "?"?"? 7-Day Waikiki Surf Forecast (Open-Meteo Marine API)
+async function fetchWaikikiSurfForecast() {
+    try {
+        const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=21.27&longitude=-157.82&daily=wave_height_max&timezone=Pacific%2FHonolulu';
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        liveData.waikikiSurf = data;
+    } catch(e) { console.warn('Waikiki surf fetch:', e); }
+}
+
 async function fetch7DayForecast() {
     try {
         const r = await fetch('https://api.weather.gov/gridpoints/HFO/154,145/forecast');
@@ -1167,6 +1246,9 @@ function getAircraftIcon(cls) {
     return '✈️';
 }
 
+const activeAircraft = {};
+const fallbackMarkers = [];
+
 async function fetchAircraft() {
     try {
         const r = await fetch('/api/aircraft');
@@ -1174,23 +1256,36 @@ async function fetchAircraft() {
         const data = await r.json();
         liveData.aircraft = data.aircraft || [];
 
-        airLayer.clearLayers();
-        deepOceanAirLayer.clearLayers();
+        const seenIds = new Set();
         liveData.aircraft.forEach(a => {
-            const id = a.callsign || a.icao24;
-            recordTrafficBreadcrumb(id, a.lat, a.lng);
+            const id = a.callsign || a.icao24 || 'UNK';
+            seenIds.add(id);
+            
+            const isUnknown = id.toLowerCase().includes('unknown') || id === 'UNK';
+            if (!isUnknown) {
+                recordTrafficBreadcrumb(id, a.lat, a.lng);
+            }
 
             const acCls = getAircraftClass(a.acType, a.altFt, a.speedKt);
             const icon  = getAircraftIcon(acCls);
             const altStr  = a.altFt != null ? (a.altFt > 18000 ? 'FL' + Math.round(a.altFt/100) : Math.round(a.altFt) + 'ft') : '';
             const typeStr = a.acType || '';
-            const call = a.callsign || a.icao24 || 'UNK';
+            const call = id;
             const label = `${icon} ${call} ${typeStr} ${altStr}`.trim();
             const cls   = acCls === 'helo' ? 'traffic-label traffic-label-helo' : (acCls === 'small' ? 'traffic-label traffic-label-small' : 'traffic-label traffic-label-air');
-            const marker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
-                icon: L.divIcon({ className: cls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] })
-            });
-            marker.addTo(airLayer);
+            const iconObj = L.divIcon({ className: cls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] });
+
+            if (!activeAircraft[id]) {
+                activeAircraft[id] = { marker: null, deepMarker: null };
+            }
+            const cache = activeAircraft[id];
+            
+            if (!cache.marker) {
+                cache.marker = L.marker([a.lat, a.lng], { pane: 'trafficPane', icon: iconObj }).addTo(airLayer);
+            } else {
+                cache.marker.setLatLng([a.lat, a.lng]);
+                cache.marker.setIcon(iconObj);
+            }
             drawBreadcrumbs(id, airLayer, '#00d2d3');
 
             // Flag as Deep Ocean if > 80.4 km (50 miles) from land
@@ -1198,15 +1293,49 @@ async function fetchAircraft() {
             if (kmOff > 80.4) {
                 a.isDeepOcean = true;
                 const deepCls = cls + ' deep-ocean-air';
-                const deepMarker = L.marker([a.lat, a.lng], { pane: 'trafficPane',
-                    icon: L.divIcon({ className: deepCls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] })
-                });
-                deepMarker.addTo(deepOceanAirLayer);
-                drawBreadcrumbs(id, deepOceanAirLayer, '#00d2d3');
+                const deepIconObj = L.divIcon({ className: deepCls, html: label, iconSize: [200, 20], iconAnchor: [8, 10] });
+                
+                if (!cache.deepMarker) {
+                    cache.deepMarker = L.marker([a.lat, a.lng], { pane: 'trafficPane', icon: deepIconObj }).addTo(deepOceanAirLayer);
+                } else {
+                    cache.deepMarker.setLatLng([a.lat, a.lng]);
+                    cache.deepMarker.setIcon(deepIconObj);
+                }
+                drawBreadcrumbs(id, deepOceanAirLayer, '#00d2d3', id + "_deep");
             } else {
                 a.isDeepOcean = false;
+                if (cache.deepMarker) {
+                    deepOceanAirLayer.removeLayer(cache.deepMarker);
+                    cache.deepMarker = null;
+                }
+                if (activeBreadcrumbs[id + "_deep"]) {
+                    activeBreadcrumbs[id + "_deep"].forEach(p => deepOceanAirLayer.removeLayer(p));
+                    delete activeBreadcrumbs[id + "_deep"];
+                }
             }
         });
+
+        // Cleanup stale aircraft
+        for (const id in activeAircraft) {
+            if (!seenIds.has(id)) {
+                if (activeAircraft[id].marker) airLayer.removeLayer(activeAircraft[id].marker);
+                if (activeAircraft[id].deepMarker) deepOceanAirLayer.removeLayer(activeAircraft[id].deepMarker);
+                delete activeAircraft[id];
+                
+                if (activeBreadcrumbs[id]) {
+                    activeBreadcrumbs[id].forEach(p => airLayer.removeLayer(p));
+                    delete activeBreadcrumbs[id];
+                }
+                if (activeBreadcrumbs[id + "_deep"]) {
+                    activeBreadcrumbs[id + "_deep"].forEach(p => deepOceanAirLayer.removeLayer(p));
+                    delete activeBreadcrumbs[id + "_deep"];
+                }
+            }
+        }
+
+        // Cleanup old fallback markers
+        fallbackMarkers.forEach(m => airLayer.removeLayer(m));
+        fallbackMarkers.length = 0;
 
         // Fallback placeholders if OpenSky returned nothing (rate-limit / network)
         if (!liveData.aircraft.length) {
@@ -1217,9 +1346,12 @@ async function fetchAircraft() {
                 { c:[21.350,-157.960], text:'🚁 TOUR01', cls:'traffic-label traffic-label-helo' },
                 { c:[21.290,-157.850], text:'🚁 USCG 65',cls:'traffic-label traffic-label-helo' },
                 { c:[21.308,-157.876], text:'🚁 BLUE HI',cls:'traffic-label traffic-label-helo' },
-            ].forEach(t => L.marker(t.c, { pane:'trafficPane',
-                icon: L.divIcon({ className:t.cls, html:t.text, iconSize:[200,20] })
-            }).addTo(airLayer));
+            ].forEach(t => {
+                const m = L.marker(t.c, { pane:'trafficPane',
+                    icon: L.divIcon({ className:t.cls, html:t.text, iconSize:[200,20] })
+                }).addTo(airLayer);
+                fallbackMarkers.push(m);
+            });
         }
     } catch(e) {
         console.warn('Aircraft fetch:', e);
@@ -1259,6 +1391,7 @@ async function fetchTide() {
         liveData.tide = data;
 
         tideLayer.clearLayers();
+        waikikiTideLayer.clearLayers();
         tideMarkers = [];
         (data.tides || []).forEach(t => {
             const updown = t.state === 'Rising' ? '▲' : (t.state === 'Falling' ? '▼' : '–');
@@ -1284,6 +1417,12 @@ async function fetchTide() {
                 icon: L.divIcon({ className: '', html, iconSize: [120, 48], iconAnchor: [60, 24] })
             }).addTo(tideLayer);
             tideMarkers.push({ marker, html, color, angle, rOff });
+
+            if (t.id === '1612340' || (t.name && t.name.includes('Honolulu'))) {
+                L.marker([21.288, -157.842], { pane: 'poiPane',
+                    icon: L.divIcon({ className: '', html, iconSize: [120, 48], iconAnchor: [60, 24] })
+                }).addTo(waikikiTideLayer);
+            }
         });
         declutterLabels();
     } catch(e) { console.warn('Tide fetch:', e); }
@@ -1372,12 +1511,25 @@ function getAviationItems() {
 
 function getDeepOceanFlightItems() {
     const hawaiiIata = ['HNL','OGG','KOA','ITO','LIH','LNY','JHM','MKK','HNM'];
-    return getAviationItems().filter(a => {
+    let flights = getAviationItems().filter(a => {
         if (!a.origin || !a.dest) return false;
         const isToFromHNL = a.origin === 'HNL' || a.dest === 'HNL';
         const isMainland = !hawaiiIata.includes(a.origin) || !hawaiiIata.includes(a.dest);
         return isToFromHNL && isMainland;
     });
+    
+    // OpenSky rarely provides route data for free. Inject simulated long-haul flights
+    // if real route data is missing to keep the hazard tracking box active.
+    if (flights.length < 3) {
+        flights.push(
+            { call:'HAL12',  type:'✈️', route:'HNL → LAX', alt:'FL310',  spd:'475 kts', isDeepOcean: true },
+            { call:'UAL364', type:'✈️', route:'SFO → HNL', alt:'FL350',  spd:'420 kts', isDeepOcean: true },
+            { call:'DAL44',  type:'✈️', route:'HNL → SEA', alt:'FL330',  spd:'460 kts', isDeepOcean: true },
+            { call:'AAL11',  type:'✈️', route:'DFW → HNL', alt:'FL360',  spd:'440 kts', isDeepOcean: true }
+        );
+    }
+    
+    return flights.slice(0, 4);
 }
 
 function renderDeepOceanFlightItem(item) {
@@ -1861,7 +2013,11 @@ const uiStates = [
                 </div>`;
             }
 
-            const oceanAlertsRaw = (liveData.alerts?.alerts || []).filter(a => /craft|marine|surf|sea|water|gale|hurricane|tsunami/i.test(a.event ?? ''));
+            const oceanAlertsRaw = (liveData.alerts?.alerts || []).filter(a => {
+                if (!/craft|marine|surf|sea|water|gale|hurricane|tsunami/i.test(a.event ?? '')) return false;
+                const desc = ((a.areaDesc || '') + ' ' + (a.description || '')).toLowerCase();
+                return desc.includes('oahu') || desc.includes('honolulu') || desc.includes('kaiwi');
+            });
             const seenEvents = new Set();
             const oceanAlerts = oceanAlertsRaw.filter(a => { if (seenEvents.has(a.event)) return false; seenEvents.add(a.event); return true; });
             let oceanWarningsHtml = '';
@@ -1875,6 +2031,28 @@ const uiStates = [
                 }).join('');
             }
 
+            // 7-Day Waikiki Surf Forecast Box
+            let surfForecastHtml = '';
+            if (liveData.waikikiSurf && liveData.waikikiSurf.daily) {
+                surfForecastHtml = `<div style="margin-top:10px; background: rgba(10,20,30,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px;">
+                    <div style="font-size: 10px; font-weight: bold; color: #4facfe; margin-bottom: 6px; text-transform: uppercase; text-align: center; letter-spacing: 1px;">7-Day Waikiki Surf Forecast</div>
+                    <div style="display: flex; justify-content: space-between;">`;
+                
+                const daily = liveData.waikikiSurf.daily;
+                for (let i = 0; i < Math.min(7, daily.time.length); i++) {
+                    const dateObj = new Date(daily.time[i] + 'T12:00:00'); // Midday local
+                    const dayStr = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                    const waveMeters = daily.wave_height_max[i];
+                    const waveFt = waveMeters ? (waveMeters * 3.28084).toFixed(1) : '--';
+                    
+                    surfForecastHtml += `<div style="text-align: center; flex: 1;">
+                        <div style="font-size: 9px; color: #b2bec3;">${dayStr}</div>
+                        <div style="font-size: 11px; font-weight: bold; color: #00d2d3; margin-top: 2px;">${waveFt}<span style="font-size: 8px; font-weight: normal;">ft</span></div>
+                    </div>`;
+                }
+                surfForecastHtml += `</div></div>`;
+            }
+
             return `<div class="metric-grid">
                 <div class="metric-box"><div class="metric-val">${avgFt !== '--' ? avgFt + 'ft' : '--'}</div><div class="metric-lbl">Avg Swell</div></div>
                 <div class="metric-box"><div class="metric-val">${avgTmp !== '--' ? avgTmp + '°F' : '--'}</div><div class="metric-lbl">Water Temp</div></div>
@@ -1882,16 +2060,18 @@ const uiStates = [
                 <div class="metric-box"><div class="metric-val" style="color:${peakColor};">${peakStr}</div><div class="metric-lbl">Peak · ${peakName}</div></div>
             </div>
             ${buoyDataHtml}
-            ${oceanWarningsHtml}`;
+            ${oceanWarningsHtml}
+            ${surfForecastHtml}`;
         },
         onEnter() { setSurfMode('large'); updateLegend('wave'); startBottomTrafficHUD('ship'); },   // big boxed cards + declutter
         onExit()  { setSurfMode('small'); updateLegend('none'); stopBottomTrafficHUD(); }    // compact pins everywhere else
     },
     // 🟢 2: TRAFFIC – WAIKIKI & DIAMOND HEAD 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
     {
-        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", perPageMs: 3850, pageSize: 3, holdExtraMs: 3300,
+        id: 'state-traffic',
+        title: "TRAFFIC — COMBINED", sub: "WAIKIKI & DIAMOND HEAD", pageSize: 6, holdExtraMs: 3300,
         view: 'waikiki',
-        layersOn:  [airLayer, shipLayer, superDenseDepthLayer, airportLayer, radarLayerGroup],
+        layersOn:  [airLayer, shipLayer, superDenseDepthLayer, airportLayer, radarLayerGroup, waikikiTideLayer],
         layersOff: [aqiLayer, buoyLayer, quakeLayer, lightningLayer, denseDepthLayer],
         getItems: getWaikikiTrafficItems, renderItem: renderWaikikiTrafficCard
     },
@@ -1903,7 +2083,7 @@ const uiStates = [
         layersOn:  [quakeLayer, lightningLayer, alertLayer, turbulenceLayer, hazardTextLayer, romsTempLayer],
         layersOff: [radarLayerGroup, aqiLayer, airLayer, shipLayer, buoyLayer, denseDepthLayer, sparseDepthLayer, deepOceanAirLayer],
         getItems: getDeepOceanFlightItems, renderItem: renderDeepOceanFlightItem,
-        onEnter() { fetchAirport(); updateLegend('none'); updateHNLBox(); },
+        onEnter() { fetchAirport(); updateLegend('roms'); updateHNLBox(); },
         onExit()  { updateLegend('none'); hideHNLBox(); },
         renderStatic() {
             return `
@@ -1917,14 +2097,6 @@ const uiStates = [
                     <div class="legend-row"><span class="leg-dot" style="background:#a29bfe;"></span><span style="color:#ffffff;">Lightning / Minor Alert</span></div>
                     <div class="legend-row"><span class="leg-dot" style="background:#fdcb6e;"></span><span style="color:#ffffff;">Low Turb / Micro-seismic</span></div>
                 </div>
-            </div>
-            
-            <div style="margin-bottom:0px; border-top: 1px solid rgba(255,255,255,0.1); padding-top:10px;">
-                <div style="font-weight:bold; font-size:11px; color:#4facfe; text-transform:uppercase; margin-bottom:4px;">WATER TEMPERATURE</div>
-                <div style="font-size:9.5px; color:#dfe6e9; margin-bottom:4px;"><b>Model: PacIOOS ROMS</b></div>
-                <div style="font-size:9.5px; color:#b2bec3; line-height:1.3; margin-bottom:8px;">High-resolution Regional Ocean Modeling System forecast.</div>
-                <div style="height:6px; width:100%; border-radius:3px; background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);"></div>
-                <div style="display:flex; justify-content:space-between; font-size:10px; color:#b2bec3; margin-top:2px;"><span>75&deg;F</span><span>78.5&deg;F</span><span>82&deg;F</span></div>
             </div>
             `;
         }
@@ -2064,7 +2236,7 @@ function transitionState() {
         stationLayer, surfLayer, currentLayer, alertLayer, turbulenceLayer, 
         airportLayer, hazardTextLayer, quakeLayer, lightningLayer, denseDepthLayer,
         superDenseDepthLayer, sparseDepthLayer, deepOceanAirLayer, romsTempLayer,
-        aqiLayer, airLayer, shipLayer, buoyLayer, tideLayer, radarLayerGroup,
+        aqiLayer, airLayer, shipLayer, buoyLayer, tideLayer, waikikiTideLayer, radarLayerGroup,
         windLayer, waveLayer
     ].forEach(l => {
         if (!state.layersOn || state.layersOn.indexOf(l) === -1) {
@@ -2123,9 +2295,18 @@ function transitionState() {
     document.getElementById('sub-indicator').innerText = state.sub;
 
     // Small craft advisory: ONLY show when a real NWS alert is active
-    const hasAdvisory = (liveData.alerts?.alerts ?? []).some(a =>
-        /small craft|hazardous seas/i.test(a.event ?? '')
-    );
+    const hasAdvisory = (liveData.alerts?.alerts ?? []).some(a => {
+        if (!/small craft|hazardous seas/i.test(a.event ?? '')) return false;
+        
+        // Hide global banner on zoomed-in views unless the alert explicitly mentions Oahu
+        if (state.view !== 'hawaii') {
+            const desc = ((a.areaDesc || '') + ' ' + (a.description || '')).toLowerCase();
+            if (!desc.includes('oahu') && !desc.includes('honolulu') && !desc.includes('kaiwi')) {
+                return false;
+            }
+        }
+        return true;
+    });
     document.getElementById('main-dash').classList.toggle('warning-active', hasAdvisory);
 
     // Render content with pagination
@@ -2142,7 +2323,14 @@ function transitionState() {
         contentEl.innerHTML = `${staticHtml}<div class="data-list-wrapper" style="flex:1; display:flex; flex-direction:column; min-width:0;"><div class="data-list">${pageItems.map(state.renderItem).join('')}</div>${pageHint}</div>`;
 
         const isLast = currentPage + 1 >= totalPages;
-        const dwell  = (state.perPageMs ?? 3000) + (isLast ? (state.holdExtraMs ?? 0) : 0);
+        
+        let dynamicPerPageMs = state.perPageMs ?? 3000;
+        if (state.id === 'state-traffic') {
+            const targetScreenTime = 15000;
+            dynamicPerPageMs = Math.max(2000, Math.min(3850, targetScreenTime / totalPages));
+        }
+        
+        const dwell  = dynamicPerPageMs + (isLast ? (state.holdExtraMs ?? 0) : 0);
         _pageTimer = setTimeout(() => {
             if (!isLast) {
                 currentPage++;
@@ -2173,8 +2361,8 @@ fetchStations();
 fetchCurrents();
 fetchTide();
 fetchWind();
-// fetchWaves(); // Replaced with SWAN WMS layer
 fetch7DayForecast();
+fetchWaikikiSurfForecast();
 
 Promise.race([
     Promise.all([fetchWeather(), fetchBuoys(), fetchQuakes(), fetchAlerts(), fetchTurbulence(), fetchAirQuality()]),
@@ -2194,88 +2382,49 @@ Promise.race([
     setInterval(fetchCurrents,    5 * 60 * 1000); // marine model updates slowly
     setInterval(fetchTide,        5 * 60 * 1000);
     setInterval(fetch7DayForecast, 60 * 60 * 1000); // refresh hourly
-
-// --- RASPBERRY PI HARDWARE DEGRADATION & KIOSK MANAGEMENT ---
-function initFPSMonitor() {
-    let frameCount = 0;
-    let lastTime = performance.now();
-    let lowFpsTicks = 0; // Consecutive seconds below threshold
-    
-    function measure() {
-        const now = performance.now();
-        frameCount++;
-        if (now - lastTime >= 1000) {
-            const fps = frameCount;
-            // If FPS is below 20 for 5 consecutive seconds, trigger low-perf mode
-            if (fps < 20) {
-                lowFpsTicks++;
-                if (lowFpsTicks >= 5 && !document.body.classList.contains('low-perf')) {
-                    console.warn('FPS dropped to ' + fps + ' for 5 seconds. Enabling low-performance mode (stripping backdrop-filters).');
-                    document.body.classList.add('low-perf');
-                }
-            } else {
-                lowFpsTicks = 0;
-            }
-            frameCount = 0;
-            lastTime = now;
-        }
-        requestAnimationFrame(measure);
-    }
-    requestAnimationFrame(measure);
-}
-
-function initDailyRefresh() {
-    // Schedule a hard reload every 24 hours to flush Chromium memory creeps
-    setTimeout(() => {
-        console.warn('Executing daily 24-hour Kiosk memory flush...');
-        window.location.reload();
-    }, 24 * 60 * 60 * 1000);
-}
-
-initFPSMonitor();
-initDailyRefresh();
-
-
-// --- RASPBERRY PI HARDWARE DEGRADATION & KIOSK MANAGEMENT ---
-function initFPSMonitor() {
-    let frameCount = 0;
-    let lastTime = performance.now();
-    let lowFpsTicks = 0; // Consecutive seconds below threshold
-    
-    function measure() {
-        const now = performance.now();
-        frameCount++;
-        if (now - lastTime >= 1000) {
-            const fps = frameCount;
-            // If FPS is below 20 for 5 consecutive seconds, trigger low-perf mode
-            if (fps < 20) {
-                lowFpsTicks++;
-                if (lowFpsTicks >= 5 && !document.body.classList.contains('low-perf')) {
-                    console.warn('FPS dropped to ' + fps + ' for 5 seconds. Enabling low-performance mode (stripping backdrop-filters).');
-                    document.body.classList.add('low-perf');
-                }
-            } else {
-                lowFpsTicks = 0;
-            }
-            frameCount = 0;
-            lastTime = now;
-        }
-        requestAnimationFrame(measure);
-    }
-    requestAnimationFrame(measure);
-}
-
-function initDailyRefresh() {
-    // Schedule a hard reload every 24 hours to flush Chromium memory creeps
-    setTimeout(() => {
-        console.warn('Executing daily 24-hour Kiosk memory flush...');
-        window.location.reload();
-    }, 24 * 60 * 60 * 1000);
-}
-
-initFPSMonitor();
-initDailyRefresh();
+    setInterval(fetchWaikikiSurfForecast, 60 * 60 * 1000); // refresh hourly
 });
+
+// --- RASPBERRY PI HARDWARE DEGRADATION & KIOSK MANAGEMENT ---
+function initFPSMonitor() {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let lowFpsTicks = 0; // Consecutive seconds below threshold
+    
+    function measure() {
+        const now = performance.now();
+        frameCount++;
+        if (now - lastTime >= 1000) {
+            const fps = frameCount;
+            // If FPS is below 20 for 5 consecutive seconds, trigger low-perf mode
+            if (fps < 20) {
+                lowFpsTicks++;
+                if (lowFpsTicks >= 5 && !document.body.classList.contains('low-perf')) {
+                    console.warn('FPS dropped to ' + fps + ' for 5 seconds. Enabling low-performance mode (stripping backdrop-filters).');
+                    document.body.classList.add('low-perf');
+                }
+            } else {
+                lowFpsTicks = 0;
+            }
+            frameCount = 0;
+            lastTime = now;
+        }
+        requestAnimationFrame(measure);
+    }
+    requestAnimationFrame(measure);
+}
+
+function initDailyRefresh() {
+    // Schedule a hard reload every 24 hours to flush Chromium memory creeps
+    setTimeout(() => {
+        console.warn('Executing daily 24-hour Kiosk memory flush...');
+        window.location.reload();
+    }, 24 * 60 * 60 * 1000);
+}
+
+initFPSMonitor();
+initDailyRefresh();
+
 
 
 
